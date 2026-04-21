@@ -12,9 +12,9 @@ export function TaskCard({ task }: { task: TaskOnBoard }) {
   return (
     <article
       className={cn(
-        'group rounded-md bg-zinc-900/70 px-2.5 py-2 text-sm',
-        'border border-transparent hover:border-zinc-700 hover:bg-zinc-900',
-        'transition-colors cursor-default',
+        'group rounded-md bg-zinc-900 px-2.5 py-2 text-sm',
+        'border border-zinc-800 hover:border-zinc-700',
+        'transition-colors cursor-default shadow-sm',
       )}
     >
       <div className="text-zinc-100 leading-snug line-clamp-3">{f['System.Title']}</div>
