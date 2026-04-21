@@ -1,7 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
-import { cn } from '@/lib/cn';
-import { hueFrom, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
+import { avatarColor, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
 
 export function SwimlaneBanner({
   row,
@@ -18,21 +17,17 @@ export function SwimlaneBanner({
   const assignee = f['System.AssignedTo'];
 
   return (
-    <div className="flex items-center gap-2 py-1 text-sm">
-      <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+    <div className="flex items-center gap-2 py-1 text-[13.5px]">
+      <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
       <span
-        className={cn(
-          'inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide shrink-0',
-          type.bg,
-          type.fg,
-          type.border,
-        )}
-      >
-        {type.label}
-      </span>
-      <span className="text-[11px] font-mono text-zinc-500 shrink-0">#{row.id}</span>
+        className="h-1.5 w-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: type.dot }}
+        aria-hidden
+      />
+      <span className="text-zinc-400 shrink-0">{type.label}</span>
+      <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
       <span className="text-zinc-100 font-medium truncate">{f['System.Title']}</span>
-      <span className="text-[11px] text-zinc-500 shrink-0">
+      <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
       </span>
       {tags.length > 0 && (
@@ -40,7 +35,7 @@ export function SwimlaneBanner({
           {tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300"
+              className="inline-flex items-center rounded-sm bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-400"
             >
               {tag}
             </span>
@@ -48,7 +43,7 @@ export function SwimlaneBanner({
         </div>
       )}
       {points != null && (
-        <span className="text-[11px] font-mono text-zinc-500 shrink-0">· {points} pts</span>
+        <span className="mono text-[11px] text-zinc-500 shrink-0">· {points} pts</span>
       )}
       {assignee?.displayName && <TinyAvatar displayName={assignee.displayName} />}
     </div>
@@ -57,10 +52,10 @@ export function SwimlaneBanner({
 
 export function UnparentedBanner({ totalTasks }: { totalTasks: number }) {
   return (
-    <div className="flex items-center gap-2 py-1 text-sm">
-      <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+    <div className="flex items-center gap-2 py-1 text-[13.5px]">
+      <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
       <span className="text-zinc-300 font-medium">Everything else</span>
-      <span className="text-[11px] text-zinc-500 shrink-0">
+      <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint
       </span>
     </div>
@@ -68,11 +63,11 @@ export function UnparentedBanner({ totalTasks }: { totalTasks: number }) {
 }
 
 function TinyAvatar({ displayName }: { displayName: string }) {
-  const hue = hueFrom(displayName);
+  const { bg, fg } = avatarColor(displayName);
   return (
     <span
-      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold text-zinc-950 shrink-0"
-      style={{ backgroundColor: `hsl(${hue} 70% 70%)` }}
+      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold shrink-0"
+      style={{ backgroundColor: bg, color: fg }}
       title={displayName}
     >
       {initialsOf(displayName)}

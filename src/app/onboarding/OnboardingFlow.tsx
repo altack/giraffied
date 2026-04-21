@@ -88,150 +88,190 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-xl space-y-6">
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Subtle ambient gradient — the only "glow" moment on this surface. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(80% 50% at 50% 0%, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 35%, transparent 70%)',
+        }}
+      />
+      <div className="relative w-full max-w-md space-y-7">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Connect to Azure DevOps</h1>
-          <p className="text-sm text-zinc-400">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
+            Jirafied
+          </div>
+          <h1 className="text-[22px] font-semibold tracking-tight leading-tight">
+            Connect to Azure DevOps
+          </h1>
+          <p className="text-[13px] text-zinc-500 leading-relaxed">
             Jirafied talks directly to the Azure DevOps REST API from your browser. Nothing goes
             through a server.
           </p>
         </header>
 
-        {step === 'credentials' && (
-          <form onSubmit={handleCredentials} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="org">Organization</Label>
-              <Input
-                id="org"
-                placeholder="myorg"
-                value={org}
-                onChange={(e) => setOrg(e.target.value)}
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-zinc-500">
-                The segment after <code className="text-zinc-300">dev.azure.com/</code>
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pat">Personal Access Token</Label>
-              <Input
-                id="pat"
-                type="password"
-                placeholder="••••••••••••••••"
-                value={pat}
-                onChange={(e) => setPat(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-zinc-500 flex items-center gap-1">
-                <span>Needs scope</span>
-                <code className="text-zinc-300">Work Items (Read &amp; write)</code>.
-                <a
-                  href={
-                    org.trim()
-                      ? `https://dev.azure.com/${encodeURIComponent(org.trim())}/_usersSettings/tokens`
-                      : 'https://dev.azure.com'
-                  }
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ml-1 inline-flex items-center gap-0.5 text-indigo-400 hover:underline"
-                >
-                  Create one <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
-            </div>
-            {error && (
-              <div className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-                {error}
-              </div>
-            )}
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {busy ? 'Connecting…' : 'Connect'}
-            </Button>
-          </form>
-        )}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 lit-top">
+          {step === 'credentials' && (
+            <form onSubmit={handleCredentials} className="space-y-4">
+              <Field label="Organization" htmlFor="org">
+                <Input
+                  id="org"
+                  placeholder="myorg"
+                  value={org}
+                  onChange={(e) => setOrg(e.target.value)}
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <Hint>
+                  The segment after <code className="mono text-zinc-400">dev.azure.com/</code>
+                </Hint>
+              </Field>
+              <Field label="Personal Access Token" htmlFor="pat">
+                <Input
+                  id="pat"
+                  type="password"
+                  placeholder="••••••••••••••••"
+                  value={pat}
+                  onChange={(e) => setPat(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <Hint>
+                  Needs scope <code className="mono text-zinc-400">Work Items (Read &amp; write)</code>.{' '}
+                  <a
+                    href={
+                      org.trim()
+                        ? `https://dev.azure.com/${encodeURIComponent(org.trim())}/_usersSettings/tokens`
+                        : 'https://dev.azure.com'
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-0.5 text-indigo-300 hover:text-indigo-200"
+                  >
+                    Create one <ExternalLink className="h-3 w-3" />
+                  </a>
+                </Hint>
+              </Field>
+              {error && <ErrorRow>{error}</ErrorRow>}
+              <Button type="submit" disabled={busy} className="w-full">
+                {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {busy ? 'Connecting…' : 'Connect'}
+              </Button>
+            </form>
+          )}
 
-        {step === 'project' && (
-          <div className="space-y-4">
-            <div className="text-sm text-zinc-400">
-              Connected to <code className="text-zinc-200">{org}</code>. Choose a project.
-            </div>
-            <SearchInput
-              value={projectFilter}
-              onChange={setProjectFilter}
-              placeholder="Search projects…"
-              total={projects.length}
-              shown={filteredProjects.length}
-              autoFocus
-            />
-            {error && (
-              <div className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-                {error}
+          {step === 'project' && (
+            <div className="space-y-4">
+              <div className="text-[13px] text-zinc-400">
+                Connected to <code className="mono text-zinc-200">{org}</code>. Choose a project.
               </div>
-            )}
-            <PickerList
-              items={filteredProjects}
-              emptyLabel={projectFilter ? 'No matches.' : 'No projects visible.'}
-              renderItem={(p) => (
-                <>
-                  <div>
-                    <div className="font-medium">{p.name}</div>
-                    {p.description && (
-                      <div className="text-xs text-zinc-500 line-clamp-1">{p.description}</div>
+              <SearchInput
+                value={projectFilter}
+                onChange={setProjectFilter}
+                placeholder="Search projects…"
+                total={projects.length}
+                shown={filteredProjects.length}
+                autoFocus
+              />
+              {error && <ErrorRow>{error}</ErrorRow>}
+              <PickerList
+                items={filteredProjects}
+                emptyLabel={projectFilter ? 'No matches.' : 'No projects visible.'}
+                renderItem={(p) => (
+                  <>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-zinc-100 truncate">
+                        {p.name}
+                      </div>
+                      {p.description && (
+                        <div className="text-[11.5px] text-zinc-500 line-clamp-1">
+                          {p.description}
+                        </div>
+                      )}
+                    </div>
+                    {busy && selectedProject?.id === p.id && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+                    )}
+                  </>
+                )}
+                onSelect={handleProject}
+                disabled={busy}
+              />
+              <Button variant="ghost" size="sm" onClick={() => setStep('credentials')}>
+                ← Change organization
+              </Button>
+            </div>
+          )}
+
+          {step === 'team' && selectedProject && (
+            <div className="space-y-4">
+              <div className="text-[13px] text-zinc-400">
+                Project <code className="mono text-zinc-200">{selectedProject.name}</code>. Choose a
+                team — this picks the default sprint board.
+              </div>
+              <SearchInput
+                value={teamFilter}
+                onChange={setTeamFilter}
+                placeholder="Search teams…"
+                total={teams.length}
+                shown={filteredTeams.length}
+                autoFocus
+              />
+              <PickerList
+                items={filteredTeams}
+                emptyLabel={teamFilter ? 'No matches.' : 'No teams in this project.'}
+                renderItem={(t) => (
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-zinc-100 truncate">{t.name}</div>
+                    {t.description && (
+                      <div className="text-[11.5px] text-zinc-500 line-clamp-1">
+                        {t.description}
+                      </div>
                     )}
                   </div>
-                  {busy && selectedProject?.id === p.id && (
-                    <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
-                  )}
-                </>
-              )}
-              onSelect={handleProject}
-              disabled={busy}
-            />
-            <Button variant="ghost" size="sm" onClick={() => setStep('credentials')}>
-              ← Change organization
-            </Button>
-          </div>
-        )}
-
-        {step === 'team' && selectedProject && (
-          <div className="space-y-4">
-            <div className="text-sm text-zinc-400">
-              Project <code className="text-zinc-200">{selectedProject.name}</code>. Choose a team —
-              this picks the default sprint board.
+                )}
+                onSelect={handleTeam}
+                disabled={false}
+              />
+              <Button variant="ghost" size="sm" onClick={() => setStep('project')}>
+                ← Change project
+              </Button>
             </div>
-            <SearchInput
-              value={teamFilter}
-              onChange={setTeamFilter}
-              placeholder="Search teams…"
-              total={teams.length}
-              shown={filteredTeams.length}
-              autoFocus
-            />
-            <PickerList
-              items={filteredTeams}
-              emptyLabel={teamFilter ? 'No matches.' : 'No teams in this project.'}
-              renderItem={(t) => (
-                <div>
-                  <div className="font-medium">{t.name}</div>
-                  {t.description && (
-                    <div className="text-xs text-zinc-500 line-clamp-1">{t.description}</div>
-                  )}
-                </div>
-              )}
-              onSelect={handleTeam}
-              disabled={false}
-            />
-            <Button variant="ghost" size="sm" onClick={() => setStep('project')}>
-              ← Change project
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11.5px] text-zinc-500 flex items-center gap-1">{children}</p>;
+}
+
+function ErrorRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2 text-[12.5px] text-red-200 lit-top">
+      {children}
     </div>
   );
 }
@@ -267,16 +307,16 @@ function SearchInput({
   return (
     <div className="space-y-1">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="pl-9"
+          className="pl-8"
           autoFocus={autoFocus}
         />
       </div>
-      <div className="text-xs text-zinc-500 px-1">
+      <div className="text-[11px] text-zinc-600 px-1 mono">
         {value ? `${shown} of ${total}` : `${total} total`}
       </div>
     </div>
@@ -298,20 +338,20 @@ function PickerList<T extends { id: string }>({
 }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-zinc-800 px-4 py-6 text-center text-sm text-zinc-500">
+      <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-4 py-6 text-center text-[12.5px] text-zinc-500">
         {emptyLabel}
       </div>
     );
   }
   return (
-    <ul className="max-h-96 overflow-y-auto rounded-md border border-zinc-800 divide-y divide-zinc-800">
+    <ul className="max-h-80 overflow-y-auto rounded-md border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.04]">
       {items.map((item) => (
         <li key={item.id}>
           <button
             type="button"
             disabled={disabled}
             onClick={() => onSelect(item)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-900 disabled:opacity-50"
+            className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04] disabled:opacity-50"
           >
             {renderItem(item)}
           </button>

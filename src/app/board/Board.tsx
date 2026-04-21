@@ -17,7 +17,7 @@ export function Board() {
   } = useTaskboard();
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <TopBar iteration={iteration ?? undefined} onRefresh={refetch} isFetching={isFetching} />
       <BoardBody
         iterationLoading={iterationLoading}
@@ -46,7 +46,13 @@ function BoardBody({
   boardError: unknown;
   board: ReturnType<typeof useTaskboard>['board'];
 }) {
-  if (iterationLoading) return <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading current iteration…" />;
+  if (iterationLoading)
+    return (
+      <CenteredMessage
+        icon={<Loader2 className="h-5 w-5 animate-spin" />}
+        text="Loading current iteration…"
+      />
+    );
   if (iterationError) return <ErrorMessage error={iterationError} title="Could not load iteration" />;
   if (!hasIteration) {
     return (
@@ -57,7 +63,10 @@ function BoardBody({
       />
     );
   }
-  if (boardLoading) return <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading sprint…" />;
+  if (boardLoading)
+    return (
+      <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading sprint…" />
+    );
   if (boardError) return <ErrorMessage error={boardError} title="Could not load sprint" />;
   if (!board) return null;
 
@@ -84,11 +93,11 @@ function CenteredMessage({
   subtext?: string;
 }) {
   return (
-    <div className="flex-1 flex items-center justify-center text-zinc-400">
+    <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-2 text-center">
-        <div className="text-zinc-500">{icon}</div>
-        <div className="text-sm">{text}</div>
-        {subtext && <div className="text-xs text-zinc-500">{subtext}</div>}
+        <div className="text-zinc-600">{icon}</div>
+        <div className="text-[13px] text-zinc-300">{text}</div>
+        {subtext && <div className="text-[12px] text-zinc-600">{subtext}</div>}
       </div>
     </div>
   );
@@ -103,12 +112,12 @@ function ErrorMessage({ error, title }: { error: unknown; title: string }) {
         : String(error);
   return (
     <div className="flex-1 flex items-center justify-center p-6">
-      <div className="max-w-lg rounded-md border border-red-900/50 bg-red-950/40 p-4 text-sm text-red-200 space-y-2">
+      <div className="max-w-lg rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-[13px] text-red-200 space-y-2 lit-top">
         <div className="flex items-center gap-2 text-red-300 font-semibold">
           <AlertCircle className="h-4 w-4" />
           {title}
         </div>
-        <div className="text-red-300/80 whitespace-pre-wrap break-words font-mono text-xs">
+        <div className="mono text-red-300/70 whitespace-pre-wrap break-words text-xs">
           {detail}
         </div>
       </div>

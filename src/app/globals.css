@@ -1,4 +1,25 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --color-canvas: #08080a;
+  --color-surface-1: #0e0e11;
+  --color-surface-2: #141418;
+  --color-surface-3: #1b1b21;
+  --color-hairline: rgb(255 255 255 / 0.06);
+  --color-hairline-strong: rgb(255 255 255 / 0.10);
+  --color-ink: #e6e6ea;
+  --color-ink-muted: #8a8a95;
+  --color-ink-dim: #5a5a64;
+  --color-accent: #818cf8;
+  --color-accent-soft: #a78bfa;
+
+  --font-sans:
+    "Inter Variable", "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
 
 html,
 body,
@@ -6,8 +27,51 @@ body,
   height: 100%;
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01", "ss03";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* A near-invisible top highlight Linear-style. Used on cards and chips. */
+.lit-top {
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+}
+
+/* Mono with refined feature settings. */
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "ss02", "zero", "cv01";
+}
+
+/* Scrollbar refinement — thin, hairline, only visible on hover. */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.08);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 0.14);
+  background-clip: padding-box;
 }

@@ -5,57 +5,50 @@ export function initialsOf(displayName: string | undefined): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** A stable hue from a string, for color-coding avatars. */
-export function hueFrom(str: string): number {
+/** Deterministic avatar palette. Muted, desaturated pairs — no neon. */
+const AVATAR_PALETTE: Array<{ bg: string; fg: string }> = [
+  { bg: '#3b4a6b', fg: '#c7d2fe' },
+  { bg: '#4c3b6b', fg: '#ddd6fe' },
+  { bg: '#6b3b4a', fg: '#fecdd3' },
+  { bg: '#3b6b5a', fg: '#a7f3d0' },
+  { bg: '#6b5a3b', fg: '#fde68a' },
+  { bg: '#3b556b', fg: '#bae6fd' },
+  { bg: '#5a3b6b', fg: '#e9d5ff' },
+  { bg: '#6b3b55', fg: '#fbcfe8' },
+];
+
+export function avatarColor(str: string): { bg: string; fg: string } {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-  return Math.abs(h) % 360;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
 }
 
-/** Visual styling per ADO work item type. Covers Scrum, Agile, Basic, CMMI. */
-export function workItemTypeStyle(type: string): {
+/** Type indicator is now a single colored dot + the short label. Matches Linear's style. */
+export interface WorkItemTypeVisual {
   label: string;
-  bg: string;
-  fg: string;
-  border: string;
-} {
+  dot: string; // hex color for the dot
+}
+
+export function workItemTypeStyle(type: string): WorkItemTypeVisual {
   switch (type) {
     case 'Task':
-      return { label: 'Task', bg: 'bg-amber-500/15', fg: 'text-amber-200', border: 'border-amber-500/30' };
+      return { label: 'Task', dot: '#f59e0b' }; // amber
     case 'Bug':
-      return { label: 'Bug', bg: 'bg-red-500/15', fg: 'text-red-200', border: 'border-red-500/30' };
+      return { label: 'Bug', dot: '#ef4444' }; // red
     case 'User Story':
-      return { label: 'Story', bg: 'bg-sky-500/15', fg: 'text-sky-200', border: 'border-sky-500/30' };
+      return { label: 'Story', dot: '#38bdf8' }; // sky
     case 'Product Backlog Item':
-      return { label: 'PBI', bg: 'bg-sky-500/15', fg: 'text-sky-200', border: 'border-sky-500/30' };
+      return { label: 'PBI', dot: '#38bdf8' };
     case 'Issue':
-      return {
-        label: 'Issue',
-        bg: 'bg-violet-500/15',
-        fg: 'text-violet-200',
-        border: 'border-violet-500/30',
-      };
+      return { label: 'Issue', dot: '#a78bfa' }; // violet
     case 'Feature':
-      return {
-        label: 'Feature',
-        bg: 'bg-purple-500/15',
-        fg: 'text-purple-200',
-        border: 'border-purple-500/30',
-      };
+      return { label: 'Feature', dot: '#c084fc' }; // purple
     case 'Epic':
-      return {
-        label: 'Epic',
-        bg: 'bg-orange-500/15',
-        fg: 'text-orange-200',
-        border: 'border-orange-500/30',
-      };
+      return { label: 'Epic', dot: '#fb923c' }; // orange
+    case 'Sprint Goal':
+      return { label: 'Goal', dot: '#34d399' }; // emerald
     default:
-      return {
-        label: type,
-        bg: 'bg-zinc-500/15',
-        fg: 'text-zinc-200',
-        border: 'border-zinc-500/30',
-      };
+      return { label: type, dot: '#71717a' }; // zinc
   }
 }
 

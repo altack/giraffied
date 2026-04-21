@@ -24,31 +24,40 @@ export function TopBar({
   const range = formatRange(iteration);
 
   return (
-    <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-2.5 bg-zinc-950">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-5 h-11 bg-[var(--color-canvas)]/70 backdrop-blur-lg border-b border-white/[0.05]">
       <div className="flex items-center gap-3 min-w-0">
-        <h1 className="text-sm font-semibold text-zinc-200 shrink-0">Jirafied</h1>
-        <span className="text-zinc-700">·</span>
-        <span className="text-sm text-zinc-300 font-medium truncate">
+        <span className="text-[13px] font-semibold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
+          Jirafied
+        </span>
+        <Sep />
+        <span className="text-[13px] text-zinc-100 font-medium truncate">
           {iteration?.name ?? 'No current iteration'}
         </span>
-        {range && <span className="text-xs text-zinc-500 shrink-0">{range}</span>}
-        <span className="text-zinc-700">·</span>
-        <span className="text-xs text-zinc-500 truncate">
-          {org} / {projectName} / {teamName}
+        {range && (
+          <span className="mono text-[11px] text-zinc-500 shrink-0">{range}</span>
+        )}
+        <Sep />
+        <span className="text-[12px] text-zinc-500 truncate">
+          {org} <span className="text-zinc-700 mx-1">/</span> {projectName}{' '}
+          <span className="text-zinc-700 mx-1">/</span> {teamName}
         </span>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <Button variant="ghost" size="icon" title="Refresh" onClick={onRefresh} disabled={isFetching}>
           {isFetching ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-3.5 w-3.5" />
           )}
         </Button>
         <Button variant="ghost" size="icon" title="Sign out" onClick={() => reset()}>
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-3.5 w-3.5" />
         </Button>
       </div>
     </header>
   );
+}
+
+function Sep() {
+  return <span className="text-zinc-800 select-none">·</span>;
 }
