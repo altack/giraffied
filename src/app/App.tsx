@@ -1,10 +1,25 @@
+import { useEffect, useState } from 'react';
+import { useSettings, isOnboarded } from '@/state/settings.store';
+import { OnboardingFlow } from './onboarding/OnboardingFlow';
+import { Board } from './board/Board';
+
 export default function App() {
-  return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-semibold tracking-tight">Jirafied</h1>
-        <p className="text-zinc-400">Sprint taskboard scaffolding is live.</p>
+  const [hydrated, setHydrated] = useState(() => useSettings.persist.hasHydrated());
+  const state = useSettings();
+
+  useEffect(() => {
+    if (hydrated) return;
+    const unsub = useSettings.persist.onFinishHydration(() => setHydrated(true));
+    return unsub;
+  }, [hydrated]);
+
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-500 flex items-center justify-center text-sm">
+        Loading…
       </div>
-    </main>
-  );
+    );
+  }
+
+  return isOnboarded(state) ? <Board /> : <OnboardingFlow />;
 }
