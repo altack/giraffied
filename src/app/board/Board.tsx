@@ -1,34 +1,117 @@
-import { Settings, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useSettings } from '@/state/settings.store';
+import { AlertCircle, CalendarOff, Loader2 } from 'lucide-react';
+import { useTaskboard } from '@/ado/hooks/useTaskboard';
+import { AdoError } from '@/ado/client';
+import { TopBar } from './TopBar';
+import { BoardGrid } from './BoardGrid';
 
 export function Board() {
-  const { org, projectName, teamName, reset } = useSettings();
+  const {
+    iteration,
+    iterationLoading,
+    iterationError,
+    board,
+    boardLoading,
+    boardError,
+    refetch,
+    isFetching,
+  } = useTaskboard();
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Jirafied</h1>
-          <span className="text-zinc-500 text-sm">
-            {org} · {projectName} · {teamName}
-          </span>
+      <TopBar iteration={iteration ?? undefined} onRefresh={refetch} isFetching={isFetching} />
+      <BoardBody
+        iterationLoading={iterationLoading}
+        iterationError={iterationError}
+        hasIteration={!!iteration}
+        boardLoading={boardLoading}
+        boardError={boardError}
+        board={board}
+      />
+    </div>
+  );
+}
+
+function BoardBody({
+  iterationLoading,
+  iterationError,
+  hasIteration,
+  boardLoading,
+  boardError,
+  board,
+}: {
+  iterationLoading: boolean;
+  iterationError: unknown;
+  hasIteration: boolean;
+  boardLoading: boolean;
+  boardError: unknown;
+  board: ReturnType<typeof useTaskboard>['board'];
+}) {
+  if (iterationLoading) return <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading current iteration…" />;
+  if (iterationError) return <ErrorMessage error={iterationError} title="Could not load iteration" />;
+  if (!hasIteration) {
+    return (
+      <CenteredMessage
+        icon={<CalendarOff className="h-6 w-6" />}
+        text="No current iteration for this team."
+        subtext="Configure one in Azure DevOps, then refresh."
+      />
+    );
+  }
+  if (boardLoading) return <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading sprint…" />;
+  if (boardError) return <ErrorMessage error={boardError} title="Could not load sprint" />;
+  if (!board) return null;
+
+  if (board.totals.cards === 0) {
+    return (
+      <CenteredMessage
+        icon={<CalendarOff className="h-6 w-6" />}
+        text="This sprint is empty."
+        subtext="Add work items in Azure DevOps to see them here."
+      />
+    );
+  }
+
+  return <BoardGrid data={board} />;
+}
+
+function CenteredMessage({
+  icon,
+  text,
+  subtext,
+}: {
+  icon: React.ReactNode;
+  text: string;
+  subtext?: string;
+}) {
+  return (
+    <div className="flex-1 flex items-center justify-center text-zinc-400">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <div className="text-zinc-500">{icon}</div>
+        <div className="text-sm">{text}</div>
+        {subtext && <div className="text-xs text-zinc-500">{subtext}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ErrorMessage({ error, title }: { error: unknown; title: string }) {
+  const detail =
+    error instanceof AdoError
+      ? `${error.status} ${error.statusText} — ${error.body.slice(0, 200)}`
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  return (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="max-w-lg rounded-md border border-red-900/50 bg-red-950/40 p-4 text-sm text-red-200 space-y-2">
+        <div className="flex items-center gap-2 text-red-300 font-semibold">
+          <AlertCircle className="h-4 w-4" />
+          {title}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" title="Settings">
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" title="Sign out" onClick={() => reset()}>
-            <LogOut className="h-4 w-4" />
-          </Button>
+        <div className="text-red-300/80 whitespace-pre-wrap break-words font-mono text-xs">
+          {detail}
         </div>
-      </header>
-      <main className="flex-1 flex items-center justify-center text-zinc-500">
-        <div className="text-center space-y-2">
-          <p>Taskboard renders here in Phase 3.</p>
-          <p className="text-xs">Connected and ready.</p>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
