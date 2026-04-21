@@ -3,12 +3,15 @@ import {
   getIterationWorkItems,
   getTaskboardColumns,
   getTaskboardWorkItems,
+  getWorkItemType,
   getWorkItemsBatch,
 } from '@/ado/endpoints';
+import { AdoError } from '@/ado/client';
 import type {
   AdoTaskboardColumn,
   AdoTaskboardWorkItem,
   AdoWorkItem,
+  AdoWorkItemType,
 } from '@/ado/types';
 import { useSettings } from '@/state/settings.store';
 import { useCurrentIteration } from './useCurrentIteration';
@@ -28,6 +31,135 @@ export interface TaskboardData {
   swimlanes: Swimlane[];
   unparented: TaskOnBoard[];
   totals: { cards: number; swimlanes: number };
+  /** True when column config was derived because the /taskboardcolumns endpoint wasn't usable. */
+  columnsFallback: boolean;
+}
+
+/** Server-side check that fires when a team has never saved taskboard-column config
+ *  (and sometimes fires spuriously for orgs where the endpoint disagrees with the UI). */
+function isColumnsNotCustomizedError(e: unknown): boolean {
+  return (
+    e instanceof AdoError &&
+    e.status === 400 &&
+    /columns are not added|customize the taskboard columns/i.test(e.body)
+  );
+}
+
+/** Sort key for fallback column ordering based on common state names. Unknown → middle. */
+const COLUMN_ORDER_HINTS: Record<string, number> = {
+  'to do': 0,
+  new: 0,
+  proposed: 0,
+  open: 0,
+  approved: 0,
+  backlog: 0,
+  ready: 0,
+  'in progress': 10,
+  active: 10,
+  doing: 10,
+  committed: 10,
+  started: 10,
+  'in review': 20,
+  'to review': 20,
+  review: 20,
+  'code review': 20,
+  'in testing': 30,
+  testing: 30,
+  'ready for test': 30,
+  'ready to test': 30,
+  resolved: 40,
+  done: 90,
+  closed: 90,
+  completed: 90,
+};
+
+function columnOrderHint(name: string): number {
+  return COLUMN_ORDER_HINTS[name.trim().toLowerCase()] ?? 50;
+}
+
+/** Derive column list from the taskboardworkitems response when the config endpoint refuses. */
+function deriveColumnsFromItems(items: AdoTaskboardWorkItem[]): AdoTaskboardColumn[] {
+  const byId = new Map<string, { name: string; sampleStates: Map<string, string> }>();
+  for (const it of items) {
+    let entry = byId.get(it.columnId);
+    if (!entry) {
+      entry = { name: it.column, sampleStates: new Map() };
+      byId.set(it.columnId, entry);
+    }
+    entry.sampleStates.set(it.workItemType, it.state);
+  }
+
+  const cols = [...byId.entries()].map(([id, { name, sampleStates }]) => ({
+    id,
+    name,
+    mappings: Object.fromEntries(sampleStates),
+  }));
+
+  cols.sort((a, b) => {
+    const diff = columnOrderHint(a.name) - columnOrderHint(b.name);
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  });
+  return cols;
+}
+
+/** Last-resort synthesis when both taskboard endpoints are unusable. Builds columns from the
+ *  Task work-item-type's state categories, the way the native UI does on first use. */
+function synthesizeFromWorkItemType(taskType: AdoWorkItemType): {
+  columns: AdoTaskboardColumn[];
+  stateToColumnId: Map<string, string>;
+} {
+  const COL = { todo: 'synth-todo', doing: 'synth-doing', done: 'synth-done' };
+  const proposed: string[] = [];
+  const inProgress: string[] = [];
+  const done: string[] = [];
+  for (const s of taskType.states) {
+    if (s.category === 'Proposed') proposed.push(s.name);
+    else if (s.category === 'InProgress') inProgress.push(s.name);
+    else if (s.category === 'Resolved' || s.category === 'Completed') done.push(s.name);
+  }
+  const columns: AdoTaskboardColumn[] = [];
+  const stateToColumnId = new Map<string, string>();
+  if (proposed.length) {
+    columns.push({ id: COL.todo, name: 'To Do', mappings: { Task: proposed[0] } });
+    for (const n of proposed) stateToColumnId.set(n, COL.todo);
+  }
+  if (inProgress.length) {
+    columns.push({ id: COL.doing, name: 'In Progress', mappings: { Task: inProgress[0] } });
+    for (const n of inProgress) stateToColumnId.set(n, COL.doing);
+  }
+  if (done.length) {
+    columns.push({
+      id: COL.done,
+      name: 'Done',
+      mappings: { Task: done[done.length - 1] },
+    });
+    for (const n of done) stateToColumnId.set(n, COL.done);
+  }
+  return { columns, stateToColumnId };
+}
+
+function synthesizeItemsFromWorkItems(
+  workItems: AdoWorkItem[],
+  columns: AdoTaskboardColumn[],
+  stateToColumnId: Map<string, string>,
+): AdoTaskboardWorkItem[] {
+  const colName = new Map(columns.map((c) => [c.id, c.name]));
+  const out: AdoTaskboardWorkItem[] = [];
+  for (const wi of workItems) {
+    if (wi.fields['System.WorkItemType'] !== 'Task') continue;
+    const state = wi.fields['System.State'];
+    const columnId = stateToColumnId.get(state);
+    if (!columnId) continue;
+    out.push({
+      id: wi.id,
+      workItemType: 'Task',
+      state,
+      column: colName.get(columnId) ?? '',
+      columnId,
+      order: (wi.fields['Microsoft.VSTS.Common.StackRank'] as number | undefined) ?? wi.id,
+    });
+  }
+  return out;
 }
 
 async function loadTaskboard(
@@ -35,10 +167,16 @@ async function loadTaskboard(
   teamId: string,
   iterationId: string,
 ): Promise<TaskboardData> {
-  const [relations, columnsRes, taskboardItems] = await Promise.all([
+  const [relations, columnsResult, itemsResult] = await Promise.all([
     getIterationWorkItems(projectId, teamId, iterationId),
-    getTaskboardColumns(projectId, teamId),
-    getTaskboardWorkItems(projectId, teamId, iterationId),
+    getTaskboardColumns(projectId, teamId).catch((e: unknown) => {
+      if (isColumnsNotCustomizedError(e)) return null;
+      throw e;
+    }),
+    getTaskboardWorkItems(projectId, teamId, iterationId).catch((e: unknown) => {
+      if (isColumnsNotCustomizedError(e)) return null;
+      throw e;
+    }),
   ]);
 
   const ids = new Set<number>();
@@ -46,9 +184,29 @@ async function loadTaskboard(
     ids.add(r.target.id);
     if (r.source) ids.add(r.source.id);
   }
-  for (const t of taskboardItems.value) ids.add(t.id);
+  if (itemsResult) for (const t of itemsResult.value) ids.add(t.id);
 
   const workItems = await getWorkItemsBatch(projectId, [...ids]);
+
+  let columns: AdoTaskboardColumn[];
+  let taskboardItems: AdoTaskboardWorkItem[];
+  let columnsFallback = false;
+
+  if (itemsResult && columnsResult) {
+    columns = columnsResult.columns;
+    taskboardItems = itemsResult.value;
+  } else if (itemsResult && !columnsResult) {
+    columns = deriveColumnsFromItems(itemsResult.value);
+    taskboardItems = itemsResult.value;
+    columnsFallback = true;
+  } else {
+    const taskType = await getWorkItemType(projectId, 'Task');
+    const synth = synthesizeFromWorkItemType(taskType);
+    columns = columnsResult ? columnsResult.columns : synth.columns;
+    taskboardItems = synthesizeItemsFromWorkItems(workItems, columns, synth.stateToColumnId);
+    columnsFallback = !columnsResult;
+  }
+
   const byId = new Map<number, AdoWorkItem>();
   for (const wi of workItems) byId.set(wi.id, wi);
 
@@ -63,17 +221,14 @@ async function loadTaskboard(
   }
 
   const cardsById = new Map<number, AdoTaskboardWorkItem>();
-  for (const t of taskboardItems.value) cardsById.set(t.id, t);
+  for (const t of taskboardItems) cardsById.set(t.id, t);
 
   const rowIdSet = new Set<number>();
   const unparentedIds: number[] = [];
-  for (const card of taskboardItems.value) {
+  for (const card of taskboardItems) {
     const parentId = parentOf.get(card.id);
-    if (parentId != null && byId.has(parentId)) {
-      rowIdSet.add(parentId);
-    } else {
-      unparentedIds.push(card.id);
-    }
+    if (parentId != null && byId.has(parentId)) rowIdSet.add(parentId);
+    else unparentedIds.push(card.id);
   }
 
   const rowWorkItems = [...rowIdSet]
@@ -108,13 +263,14 @@ async function loadTaskboard(
     .sort((a, b) => a.taskboard.order - b.taskboard.order);
 
   return {
-    columns: columnsRes.columns,
+    columns,
     swimlanes,
     unparented,
     totals: {
-      cards: taskboardItems.value.length,
+      cards: taskboardItems.length,
       swimlanes: swimlanes.length + (unparented.length > 0 ? 1 : 0),
     },
+    columnsFallback,
   };
 }
 

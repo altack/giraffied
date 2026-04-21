@@ -8,6 +8,7 @@ import type {
   AdoTaskboardWorkItems,
   AdoTeam,
   AdoWorkItem,
+  AdoWorkItemType,
 } from './types';
 import { DEFAULT_WORKITEM_FIELDS } from './types';
 
@@ -77,6 +78,16 @@ export function getTaskboardWorkItems(
   return ado<AdoTaskboardWorkItems>({
     path: `/${encodeURIComponent(projectId)}/${encodeURIComponent(teamId)}/_apis/work/taskboardworkitems/${encodeURIComponent(iterationId)}`,
     apiVersion: '7.1-preview.1',
+  });
+}
+
+/** GET a single work-item type definition (for its states + state categories). */
+export function getWorkItemType(
+  projectId: string,
+  typeName: string,
+): Promise<AdoWorkItemType> {
+  return ado<AdoWorkItemType>({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitemtypes/${encodeURIComponent(typeName)}`,
   });
 }
 

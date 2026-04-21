@@ -96,6 +96,26 @@ export interface AdoWorkItem {
   url: string;
 }
 
+export type AdoStateCategory =
+  | 'Proposed'
+  | 'InProgress'
+  | 'Resolved'
+  | 'Completed'
+  | 'Removed';
+
+export interface AdoWorkItemTypeState {
+  name: string;
+  color: string;
+  category: AdoStateCategory;
+}
+
+export interface AdoWorkItemType {
+  name: string;
+  referenceName: string;
+  description?: string;
+  states: AdoWorkItemTypeState[];
+}
+
 export const DEFAULT_WORKITEM_FIELDS = [
   'System.Id',
   'System.Title',
