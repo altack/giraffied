@@ -4,6 +4,8 @@ import type {
   AdoIterationWorkItems,
   AdoList,
   AdoProject,
+  AdoReorderOperation,
+  AdoReorderResponse,
   AdoTaskboardColumns,
   AdoTaskboardWorkItems,
   AdoTeam,
@@ -88,6 +90,38 @@ export function getWorkItemType(
 ): Promise<AdoWorkItemType> {
   return ado<AdoWorkItemType>({
     path: `/${encodeURIComponent(projectId)}/_apis/wit/workitemtypes/${encodeURIComponent(typeName)}`,
+  });
+}
+
+/** Reorder one or more work items within an iteration (taskboard).
+ *  `previousId=0` means "pin to the top", `nextId=0` means "pin to the bottom".
+ *  `parentId=0` is used for items that have no parent in this iteration. */
+export function reorderIterationWorkItems(
+  projectId: string,
+  teamId: string,
+  iterationId: string,
+  op: AdoReorderOperation,
+): Promise<AdoReorderResponse> {
+  return ado<AdoReorderResponse>({
+    path: `/${encodeURIComponent(projectId)}/${encodeURIComponent(teamId)}/_apis/work/iterations/${encodeURIComponent(iterationId)}/workitemsorder`,
+    method: 'PATCH',
+    body: op,
+  });
+}
+
+/** PATCH a single field on a work item using JSON Patch. Used for column changes
+ *  (System.State) when a card is dragged between columns. */
+export function patchWorkItemField(
+  projectId: string,
+  id: number,
+  field: string,
+  value: string | number | null,
+): Promise<AdoWorkItem> {
+  return ado<AdoWorkItem>({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}`,
+    method: 'PATCH',
+    contentType: 'application/json-patch+json',
+    body: [{ op: 'add', path: `/fields/${field}`, value }],
   });
 }
 

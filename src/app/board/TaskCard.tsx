@@ -1,24 +1,52 @@
+import type { CSSProperties } from 'react';
+import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dnd';
 import type { TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { cn } from '@/lib/cn';
 import { parseTags, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
 import { Avatar } from './Avatar';
 
-export function TaskCard({ task }: { task: TaskOnBoard }) {
+export function TaskCard({
+  task,
+  dragProvided,
+  dragSnapshot,
+}: {
+  task: TaskOnBoard;
+  dragProvided?: DraggableProvided;
+  dragSnapshot?: DraggableStateSnapshot;
+}) {
   const f = task.workItem.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
   const assignee = f['System.AssignedTo'];
   const remaining = f['Microsoft.VSTS.Scheduling.RemainingWork'];
   const tags = parseTags(f['System.Tags']);
 
+  const isDragging = dragSnapshot?.isDragging ?? false;
+
+  // Zero the drop animation. Even with the flushSync overlay trick we still see a
+  // brief flicker because the library's FLIP transition runs before React's external-
+  // store observers settle. Setting `transitionDuration: 0.001s` while `isDropAnimating`
+  // makes the transition imperceptible, per the hello-pangea/dnd drop-animation guide.
+  const style: CSSProperties | undefined = dragProvided?.draggableProps.style
+    ? {
+        ...dragProvided.draggableProps.style,
+        ...(dragSnapshot?.isDropAnimating ? { transitionDuration: '0.001s' } : {}),
+      }
+    : undefined;
+
   return (
     <article
+      ref={dragProvided?.innerRef}
+      {...(dragProvided?.draggableProps ?? {})}
+      {...(dragProvided?.dragHandleProps ?? {})}
+      style={style}
       className={cn(
-        'group relative rounded-md px-3 py-2.5 text-sm cursor-default',
+        'group relative rounded-md px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing',
         'bg-[#141418] border border-white/[0.06]',
         'hover:bg-[#17171c] hover:border-white/[0.10]',
         'transition-colors duration-150',
         'lit-top',
+        isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-[#17171c]',
       )}
     >
       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">

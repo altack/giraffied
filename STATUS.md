@@ -1,6 +1,6 @@
 # Jirafied — Status
 
-Last worked on: **2026-04-21**
+Last worked on: **2026-04-21** (Phase 4 + 5 landed)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -32,15 +32,22 @@ A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azu
 - Collapsible swimlanes (chevron rotates −90°); collapse state **persisted per sprint** in `chrome.storage.local` via `collapsedLanes.store.ts`
 - Copy-link hover action on cards and swimlane titles (→ `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}`)
 - Real avatars via `<img>` + session cookie — **no extra PAT scope needed**
-- Default row sort: Feature → Epic → Story/PBI/Issue → Task → **Bug (bottom)**, alphabetical within tier; card sort alphabetical
+- Default row sort: Feature → Epic → Story/PBI/Issue → Task → **Bug (bottom)**, alphabetical within tier; cards sort by ADO `order` (StackRank)
+
+### Phase 4 — Drag cards between columns ✅
+### Phase 5 — Reorder within column ✅
+- `@hello-pangea/dnd` (v18) — picked over `pragmatic-drag-and-drop` for the built-in placeholder + push animation a Linear-style board needs
+- **Drag is scoped to a single parent**: each swimlane's droppables share a `type` of `lane-${parentId}` (or `lane-unparented`), which is how hello-pangea enforces "can't drop in another lane" at the library level — no cursor/placeholder shows on foreign lanes
+- ColumnCell is a `<Droppable>`, TaskCard wraps in `<Draggable>`; cell gets a subtle indigo tint + border while `isDraggingOver`, card gets a lift shadow + ring while `isDragging`
+- Cross-column drop → `PATCH /wit/workitems/{id}` to set `System.State` from `column.mappings[workItemType]`, then `PATCH /work/iterations/{id}/workitemsorder` to set order
+- Same-column reorder → reorder call only
+- Subtasks within a column are **not** sorted client-side — render is array-order, and drag splices the card to its new index. ADO's reorder-response `order` values are deliberately discarded on success: the response only covers a subset of siblings, and mixing fresh + stale orders causes a visible revert snap. On error we `invalidateQueries`; otherwise the next 30s refetch pulls the authoritative post-PATCH order from ADO.
+- **Drop-flicker fix**: a local `useState` overlay shadows `data` during the drop animation window. `onDragEnd` calls `flushSync(() => setOverlay(next))` so React's reconciler commits synchronously before hello-pangea/dnd's FLIP animation reads layout. `queryClient.setQueryData` alone is not enough — its observer notifications route through `useSyncExternalStore`, which isn't flushable from an event handler, so by the time React commits the cache update the library has already measured the old DOM and animated back to source. The cache is still `setQueryData`'d in parallel so refetches can't clobber the optimistic state; on mutation settle we drop the overlay and the cache takes over. Belt-and-suspenders: TaskCard sets `transitionDuration: 0.001s` while `isDropAnimating` per the hello-pangea drop-animation guide.
+- `parentId` = parent work-item id for regular lanes, `0` for "Everything else"; `previousId=0` / `nextId=0` pin to top/bottom
 
 ---
 
 ## Remaining
-
-### Phase 4 — Drag cards between columns
-
-### Phase 5 — Reorder within column
 
 ### Phase 6 — Quick-edit slide-over
 - Click card → right-side panel

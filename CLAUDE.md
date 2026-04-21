@@ -19,6 +19,7 @@ See `STATUS.md` for phase status and what's in flight.
 - Tailwind 4 via `@tailwindcss/vite`. CSS tokens live in `src/app/globals.css` `@theme {}`
 - `@fontsource-variable/inter` bundled (self-hosted — MV3 CSP forbids CDN fonts)
 - TanStack Query (data) + Zustand with `persist` middleware (settings + UI state)
+- `@hello-pangea/dnd` for drag-and-drop (chosen over `pragmatic-drag-and-drop` for built-in placeholder + push animation on Kanban-shaped boards)
 - `lucide-react` icons, `class-variance-authority` + `clsx` + `tailwind-merge` for primitives
 - No automated tests in v1; manual verification against a live ADO org
 
@@ -47,9 +48,9 @@ src/
     board/
       Board.tsx          # h-screen + overflow-hidden (lets BoardGrid own the scroll)
       TopBar.tsx         # sticky backdrop-blur header
-      BoardGrid.tsx      # sticky column headers + swimlane banners + cell grid
+      BoardGrid.tsx      # DragDropContext + sticky column headers + Droppable cells; onDragEnd wires PATCH state + PATCH order with optimistic cache update
       SwimlaneHeader.tsx # role=button div (so copy-link can be a real nested button)
-      TaskCard.tsx       # card with hover copy-link
+      TaskCard.tsx       # Draggable-wrapped card with lift shadow while isDragging
       CopyLinkButton.tsx # builds dev.azure.com/{org}/{project}/_workitems/edit/{id}
       Avatar.tsx         # initials underneath, <img> fade in on load (cookie auth)
       workItemVisuals.ts # type dots + muted avatar palette + initials/tags helpers
@@ -66,7 +67,8 @@ src/
 - **Preview API versions.** `/taskboardcolumns` and `/taskboardworkitems` need `api-version=7.1-preview.1`. All other endpoints use GA `7.1`.
 - **Continuation tokens.** `adoPaged()` reads `x-ms-continuationtoken` response header — ADO silently truncates pages otherwise. Used for projects/teams listing.
 - **Batch limit.** `POST /_apis/wit/workitemsbatch` caps at 200 IDs per call. `getWorkItemsBatch` chunks and parallelises.
-- **Don't write `Microsoft.VSTS.Common.StackRank` directly.** For reordering, use `PATCH /work/iterations/{iterationId}/workitemsorder` `{ ids, previousId, nextId }` (Phase 5).
+- **Don't write `Microsoft.VSTS.Common.StackRank` directly.** For reordering, use `PATCH /{project}/{team}/_apis/work/iterations/{iterationId}/workitemsorder` with `{ ids, previousId, nextId, parentId }` — `previousId`/`nextId` of `0` pin to the start/end of the lane, `parentId` of `0` means "no parent in this sprint" (Everything-else lane). The response is `{ count, value: [{id, order}] }`; use those `order` values to reconcile the optimistic update.
+- **Reorder does NOT change state.** When a card moves columns, `PATCH /wit/workitems/{id}` (JSON-Patch `add` op on `/fields/System.State`) *first*, then reorder. The target state comes from `column.mappings[workItemType]`.
 - **MV3 + host_permissions bypass CORS.** The extension page can `fetch('https://dev.azure.com/...')` directly — no proxy, no backend.
 - **No realtime from ADO.** No SignalR / push. We use 30s foreground polling (`refetchIntervalInBackground: false`).
 
@@ -85,7 +87,9 @@ src/
 - **Gradients only on two places**: the "Jirafied" wordmark, and the primary `Button` variant. Don't add more.
 - Work-item type is rendered as **colored dot + short label**, not a filled pill. Colors in `workItemVisuals.ts`.
 - Avatars use a deterministic 8-tone muted palette (`AVATAR_PALETTE` in `workItemVisuals.ts`), not full-saturation HSL.
-- Default row order (until user-reorder lands): `Feature (0) → Epic (1) → Story/PBI/Issue (2) → Task (3) → Bug (4)`, alphabetical within tier. Child cards and Everything-else sort alphabetically too.
+- Swimlane row order (until user-reorder lands): `Feature (0) → Epic (1) → Story/PBI/Issue (2) → Task (3) → Bug (4)`, alphabetical within tier.
+- **Cards within a column are NOT sorted client-side.** We render them in the array order ADO returned (relations order from `/iterations/{id}/workitems` + the hierarchy built in `useTaskboard`). ADO's returned order already reflects StackRank, which is the source of truth the reorder API mutates. Sorting client-side would either duplicate or fight that order. On drag, we splice the card into its new array position (see `moveCard` in `BoardGrid.tsx`); we deliberately do *not* apply the `ReorderResult[].order` values from the reorder response because that response is partial and mixing partial fresh orders with stale neighbor orders produces a visible "revert" snap.
+- **Drop-flicker nuance** (load-bearing). hello-pangea/dnd's drop animation runs FLIP and measures the Draggable's new home position in the DOM right after `onDragEnd` returns. Updating through `queryClient.setQueryData` alone does *not* propagate fast enough — its observers go through `useSyncExternalStore`, which isn't flushable with `flushSync` from an event handler, so the library measures the old DOM, animates the card back to source, and we see a flash before React finally commits the cache update. The fix in `BoardGrid.tsx` is: local `useState` overlay → `flushSync(() => setOverlay(next))` for the drop-animation-critical sync render → `setQueryData(next)` in parallel for refetch safety → clear overlay `onSettled`. Render uses `overlay ?? data`. Do not remove the overlay: the flicker comes back. Also keep the `transitionDuration: 0.001s` skip on `isDropAnimating` in TaskCard — it's a second line of defense and documented in the hello-pangea drop-animation guide.
 
 ## Git conventions
 

@@ -76,6 +76,28 @@ export interface AdoTaskboardWorkItems {
   value: AdoTaskboardWorkItem[];
 }
 
+export interface AdoReorderOperation {
+  ids: number[];
+  /** ID of the item that should end up before the reordered items. 0 = start of list. */
+  previousId: number;
+  /** ID of the item that should end up after the reordered items. 0 = end of list. */
+  nextId: number;
+  /** Shared parent of the reordered items. 0 = no parent. */
+  parentId: number;
+  /** Only used when reordering from the iteration backlog, not the taskboard. */
+  iterationPath?: string;
+}
+
+export interface AdoReorderResult {
+  id: number;
+  order: number;
+}
+
+export interface AdoReorderResponse {
+  count: number;
+  value: AdoReorderResult[];
+}
+
 export interface AdoWorkItemFields {
   'System.Id': number;
   'System.Title': string;

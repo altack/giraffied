@@ -1,20 +1,53 @@
-import { Fragment, useMemo, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import { Check } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import type { AdoTaskboardColumn } from '@/ado/types';
+import {
+  patchWorkItemField,
+  reorderIterationWorkItems,
+} from '@/ado/endpoints';
 import { useSettings } from '@/state/settings.store';
 import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
+import { cn } from '@/lib/cn';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 
+const UNPARENTED_LANE_KEY = 'unparented';
+
 interface Row {
   key: string;
+  /** Stable id used in droppable IDs and drop-scoping type. */
+  laneKey: string;
+  /** Parent work-item id for the ADO reorder call. 0 when the lane is "Everything else". */
+  parentId: number;
   banner: (props: { collapsed: boolean; onToggle: () => void }) => ReactNode;
   tasks: TaskOnBoard[];
 }
 
 function isDoneColumn(name: string): boolean {
   return /^(done|closed|completed|resolved)$/i.test(name.trim());
+}
+
+function droppableIdFor(laneKey: string, columnId: string): string {
+  return `${laneKey}__${columnId}`;
+}
+
+function parseDroppableId(id: string): { laneKey: string; columnId: string } | null {
+  const idx = id.indexOf('__');
+  if (idx < 0) return null;
+  return { laneKey: id.slice(0, idx), columnId: id.slice(idx + 2) };
+}
+
+function draggableIdFor(workItemId: number): string {
+  return `task-${workItemId}`;
+}
+
+function parseDraggableId(id: string): number | null {
+  const n = Number(id.replace(/^task-/, ''));
+  return Number.isFinite(n) ? n : null;
 }
 
 export function BoardGrid({
@@ -24,11 +57,23 @@ export function BoardGrid({
   data: TaskboardData;
   iterationId: string;
 }) {
-  const { columns, swimlanes, unparented } = data;
+  // Local overlay shadows `data` during the drop animation window. We update it
+  // synchronously via flushSync so the library reads the post-drop DOM correctly
+  // (see the long comment in handleDragEnd). Once the mutation settles we clear
+  // the overlay and the query cache takes over again.
+  const [overlay, setOverlay] = useState<TaskboardData | null>(null);
+  const displayData = overlay ?? data;
+  const { columns, swimlanes, unparented } = displayData;
+
   const org = useSettings((s) => s.org);
   const projectId = useSettings((s) => s.projectId);
   const teamId = useSettings((s) => s.teamId);
   const contextKey = laneContextKey(org, projectId, teamId, iterationId);
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => ['taskboard', projectId, teamId, iterationId],
+    [projectId, teamId, iterationId],
+  );
 
   const collapsedArr = useCollapsedLanes((s) =>
     contextKey ? s.byContext[contextKey] : undefined,
@@ -43,6 +88,8 @@ export function BoardGrid({
 
   const rows: Row[] = swimlanes.map((lane) => ({
     key: `lane-${lane.row.id}`,
+    laneKey: String(lane.row.id),
+    parentId: lane.row.id,
     banner: ({ collapsed, onToggle }) => (
       <SwimlaneBanner
         row={lane.row}
@@ -57,6 +104,8 @@ export function BoardGrid({
   if (unparented.length > 0) {
     rows.push({
       key: 'lane-unparented',
+      laneKey: UNPARENTED_LANE_KEY,
+      parentId: 0,
       banner: ({ collapsed, onToggle }) => (
         <UnparentedBanner totalTasks={unparented.length} collapsed={collapsed} onToggle={onToggle} />
       ),
@@ -66,45 +115,154 @@ export function BoardGrid({
 
   const gridTemplateColumns = `repeat(${columns.length}, minmax(260px, 1fr))`;
 
-  return (
-    <div className="flex-1 overflow-auto">
-      <div className="min-w-max px-5 pt-3 pb-6 space-y-3">
-        {/* Sticky column header row — stays pinned under the TopBar when scrolling */}
-        <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/75 backdrop-blur-lg border-b border-white/[0.05]">
-          <div className="grid gap-3" style={{ gridTemplateColumns }}>
-            {columns.map((col) => (
-              <ColumnHeader
-                key={col.id}
-                column={col}
-                count={rows.reduce(
-                  (n, r) => n + r.tasks.filter((t) => t.taskboard.columnId === col.id).length,
-                  0,
-                )}
-              />
-            ))}
-          </div>
-        </div>
+  const reorder = useMutation({
+    mutationFn: async (vars: {
+      cardId: number;
+      prevCardId: number;
+      nextCardId: number;
+      parentId: number;
+      newState?: string;
+    }) => {
+      if (!projectId || !teamId) throw new Error('Missing project/team');
+      if (vars.newState) {
+        await patchWorkItemField(projectId, vars.cardId, 'System.State', vars.newState);
+      }
+      return reorderIterationWorkItems(projectId, teamId, iterationId, {
+        ids: [vars.cardId],
+        previousId: vars.prevCardId,
+        nextId: vars.nextCardId,
+        parentId: vars.parentId,
+      });
+    },
+    // No onSuccess: ADO's reorder response has partial order values that would corrupt
+    // the cache if merged. The 30s refetch reconciles authoritative order.
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+    onSettled: () => {
+      // The cache was updated optimistically alongside the overlay; once the mutation
+      // finishes (success or error → invalidate), we can drop the overlay. If the
+      // server state diverged from our optimistic guess the cache already reflects that.
+      setOverlay(null);
+    },
+  });
 
-        {rows.map((row) => {
-          const isCollapsed = collapsedSet.has(row.key);
-          return (
-            <Fragment key={row.key}>
-              {row.banner({ collapsed: isCollapsed, onToggle: () => toggle(row.key) })}
-              {!isCollapsed && (
-                <div className="grid gap-3" style={{ gridTemplateColumns }}>
-                  {columns.map((col) => (
-                    <ColumnCell
-                      key={col.id}
-                      tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </Fragment>
-          );
-        })}
+  function handleDragEnd(result: DropResult) {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    ) {
+      return;
+    }
+
+    const src = parseDroppableId(source.droppableId);
+    const dst = parseDroppableId(destination.droppableId);
+    if (!src || !dst) return;
+    if (src.laneKey !== dst.laneKey) return;
+
+    const cardId = parseDraggableId(draggableId);
+    if (cardId == null) return;
+
+    const row = rows.find((r) => r.laneKey === src.laneKey);
+    const dstColumn = columns.find((c) => c.id === dst.columnId);
+    if (!row || !dstColumn) return;
+
+    const card = row.tasks.find((t) => t.workItem.id === cardId);
+    if (!card) return;
+
+    const dstColumnTasks = row.tasks.filter(
+      (t) => t.taskboard.columnId === dst.columnId && t.workItem.id !== cardId,
+    );
+    const prevCard = dstColumnTasks[destination.index - 1];
+    const nextCard = dstColumnTasks[destination.index];
+
+    const wiType = card.workItem.fields['System.WorkItemType'];
+    const stateChanged = src.columnId !== dst.columnId;
+    const newState = stateChanged ? dstColumn.mappings[wiType] : undefined;
+
+    const next = moveCard(displayData, src.laneKey, cardId, {
+      columnId: dst.columnId,
+      columnName: dstColumn.name,
+      destIndex: destination.index,
+      state: newState,
+    });
+
+    // CRITICAL for drop-animation correctness: hello-pangea/dnd uses FLIP to animate
+    // the dropped card from its lifted position to its new "home" in the DOM. It reads
+    // layout right after onDragEnd returns. If our state update hasn't committed by then,
+    // it measures the pre-drop DOM, animates to the old spot, and we see a flicker as
+    // React later commits and the card jumps.
+    //
+    // `queryClient.setQueryData` can't satisfy this timing: the cache update notifies
+    // observers via `useSyncExternalStore`, whose snapshot hop is scheduled, not
+    // flushed with the event handler. Wrapping it in flushSync doesn't help — flushSync
+    // only forces pending React renders; the external-store notification itself hasn't
+    // reached React yet at that point.
+    //
+    // A local `useState` setter DOES participate in React's sync flush machinery.
+    // flushSync around setOverlay guarantees the render lands before onDragEnd returns,
+    // so the library measures the new DOM and the drop animation lands where expected.
+    flushSync(() => {
+      setOverlay(next);
+    });
+    // Keep the cache in sync too so that if a refetch races with the animation, it
+    // doesn't clobber the optimistic position. The cache update can be async —
+    // the overlay is what the library is racing against.
+    queryClient.setQueryData<TaskboardData>(queryKey, next);
+
+    reorder.mutate({
+      cardId,
+      prevCardId: prevCard?.workItem.id ?? 0,
+      nextCardId: nextCard?.workItem.id ?? 0,
+      parentId: row.parentId,
+      newState,
+    });
+  }
+
+  return (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="flex-1 overflow-auto">
+        <div className="min-w-max px-5 pt-3 pb-6 space-y-3">
+          <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/75 backdrop-blur-lg border-b border-white/[0.05]">
+            <div className="grid gap-3" style={{ gridTemplateColumns }}>
+              {columns.map((col) => (
+                <ColumnHeader
+                  key={col.id}
+                  column={col}
+                  count={rows.reduce(
+                    (n, r) => n + r.tasks.filter((t) => t.taskboard.columnId === col.id).length,
+                    0,
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          {rows.map((row) => {
+            const isCollapsed = collapsedSet.has(row.key);
+            return (
+              <Fragment key={row.key}>
+                {row.banner({ collapsed: isCollapsed, onToggle: () => toggle(row.key) })}
+                {!isCollapsed && (
+                  <div className="grid gap-3" style={{ gridTemplateColumns }}>
+                    {columns.map((col) => (
+                      <ColumnCell
+                        key={col.id}
+                        droppableId={droppableIdFor(row.laneKey, col.id)}
+                        type={`lane-${row.laneKey}`}
+                        tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Fragment>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </DragDropContext>
   );
 }
 
@@ -121,12 +279,107 @@ function ColumnHeader({ column, count }: { column: AdoTaskboardColumn; count: nu
   );
 }
 
-function ColumnCell({ tasks }: { tasks: TaskOnBoard[] }) {
+function ColumnCell({
+  droppableId,
+  type,
+  tasks,
+}: {
+  droppableId: string;
+  type: string;
+  tasks: TaskOnBoard[];
+}) {
   return (
-    <div className="rounded-lg bg-white/[0.015] border border-white/[0.04] p-1.5 space-y-1.5 min-h-[96px]">
-      {tasks.map((t) => (
-        <TaskCard key={t.workItem.id} task={t} />
-      ))}
-    </div>
+    <Droppable droppableId={droppableId} type={type}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.droppableProps}
+          className={cn(
+            'rounded-lg border p-1.5 space-y-1.5 min-h-[96px] transition-colors duration-100',
+            snapshot.isDraggingOver
+              ? 'bg-indigo-400/[0.05] border-indigo-400/25'
+              : 'bg-white/[0.015] border-white/[0.04]',
+          )}
+        >
+          {tasks.map((t, i) => (
+            <Draggable
+              key={t.workItem.id}
+              draggableId={draggableIdFor(t.workItem.id)}
+              index={i}
+            >
+              {(dragProvided, dragSnapshot) => (
+                <TaskCard
+                  task={t}
+                  dragProvided={dragProvided}
+                  dragSnapshot={dragSnapshot}
+                />
+              )}
+            </Draggable>
+          ))}
+          {provided.placeholder}
+        </div>
+      )}
+    </Droppable>
   );
+}
+
+/** Move a card within its lane's `tasks` array so that within the destination column
+ *  filter it sits at `destIndex`. Also patches the card's columnId/state if changed. */
+function moveCard(
+  data: TaskboardData,
+  laneKey: string,
+  cardId: number,
+  patch: {
+    columnId: string;
+    columnName: string;
+    destIndex: number;
+    state?: string;
+  },
+): TaskboardData {
+  const reorderLane = (tasks: TaskOnBoard[]): TaskOnBoard[] => {
+    const idx = tasks.findIndex((t) => t.workItem.id === cardId);
+    if (idx < 0) return tasks;
+
+    const card = tasks[idx];
+    const moved: TaskOnBoard = {
+      ...card,
+      taskboard: {
+        ...card.taskboard,
+        columnId: patch.columnId,
+        column: patch.columnName,
+        ...(patch.state ? { state: patch.state } : {}),
+      },
+      workItem: patch.state
+        ? {
+            ...card.workItem,
+            fields: { ...card.workItem.fields, 'System.State': patch.state },
+          }
+        : card.workItem,
+    };
+
+    const without = [...tasks.slice(0, idx), ...tasks.slice(idx + 1)];
+    let seen = 0;
+    let insertAt = without.length;
+    for (let i = 0; i < without.length; i++) {
+      if (without[i].taskboard.columnId === patch.columnId) {
+        if (seen === patch.destIndex) {
+          insertAt = i;
+          break;
+        }
+        seen++;
+      }
+    }
+    return [...without.slice(0, insertAt), moved, ...without.slice(insertAt)];
+  };
+
+  if (laneKey === UNPARENTED_LANE_KEY) {
+    return { ...data, unparented: reorderLane(data.unparented) };
+  }
+  const parentId = Number(laneKey);
+  return {
+    ...data,
+    swimlanes: data.swimlanes.map((lane) =>
+      lane.row.id === parentId ? { ...lane, tasks: reorderLane(lane.tasks) } : lane,
+    ),
+  };
 }

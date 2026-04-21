@@ -65,14 +65,6 @@ function compareRows(a: AdoWorkItem, b: AdoWorkItem): number {
   });
 }
 
-function compareTasks(a: TaskOnBoard, b: TaskOnBoard): number {
-  return a.workItem.fields['System.Title'].localeCompare(
-    b.workItem.fields['System.Title'],
-    undefined,
-    { sensitivity: 'base' },
-  );
-}
-
 /** Server-side check that fires when a team has never saved taskboard-column config,
  *  and sometimes fires spuriously even for teams whose native UI clearly has columns. */
 function isColumnsNotCustomizedError(e: unknown): boolean {
@@ -347,19 +339,20 @@ async function loadTaskboard(
     return { taskboard: tb, workItem: wi };
   };
 
+  // Subtasks are NOT sorted. We preserve the order ADO returned (from
+  // /iterations/{id}/workitems for hierarchy, /taskboardworkitems for customized
+  // boards) — that order already reflects ADO's StackRank, which is the source of
+  // truth the user reorders against. Sorting client-side would either duplicate or
+  // fight that order.
   const swimlanes: Swimlane[] = rowWorkItems.map((row) => {
     const childIds = [...(childrenByParent.get(row.id) ?? [])];
-    const tasks = childIds
-      .map(toTask)
-      .filter((x): x is TaskOnBoard => x != null)
-      .sort(compareTasks);
+    const tasks = childIds.map(toTask).filter((x): x is TaskOnBoard => x != null);
     return { row, tasks };
   });
 
   const unparented = unparentedIds
     .map(toTask)
-    .filter((x): x is TaskOnBoard => x != null)
-    .sort(compareTasks);
+    .filter((x): x is TaskOnBoard => x != null);
 
   const data: TaskboardData = {
     columns,
