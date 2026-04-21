@@ -1,7 +1,9 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import type { AdoTaskboardColumn } from '@/ado/types';
+import { useSettings } from '@/state/settings.store';
+import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 
@@ -15,17 +17,29 @@ function isDoneColumn(name: string): boolean {
   return /^(done|closed|completed|resolved)$/i.test(name.trim());
 }
 
-export function BoardGrid({ data }: { data: TaskboardData }) {
+export function BoardGrid({
+  data,
+  iterationId,
+}: {
+  data: TaskboardData;
+  iterationId: string;
+}) {
   const { columns, swimlanes, unparented } = data;
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const org = useSettings((s) => s.org);
+  const projectId = useSettings((s) => s.projectId);
+  const teamId = useSettings((s) => s.teamId);
+  const contextKey = laneContextKey(org, projectId, teamId, iterationId);
 
-  const toggle = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const collapsedArr = useCollapsedLanes((s) =>
+    contextKey ? s.byContext[contextKey] : undefined,
+  );
+  const collapsedSet = useMemo(() => new Set(collapsedArr ?? []), [collapsedArr]);
+  const toggleInStore = useCollapsedLanes((s) => s.toggle);
+
+  const toggle = (key: string) => {
+    if (!contextKey) return;
+    toggleInStore(contextKey, key);
+  };
 
   const rows: Row[] = swimlanes.map((lane) => ({
     key: `lane-${lane.row.id}`,
@@ -72,7 +86,7 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
         </div>
 
         {rows.map((row) => {
-          const isCollapsed = collapsed.has(row.key);
+          const isCollapsed = collapsedSet.has(row.key);
           return (
             <Fragment key={row.key}>
               {row.banner({ collapsed: isCollapsed, onToggle: () => toggle(row.key) })}

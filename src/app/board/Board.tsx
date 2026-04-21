@@ -23,6 +23,7 @@ export function Board() {
         iterationLoading={iterationLoading}
         iterationError={iterationError}
         hasIteration={!!iteration}
+        iterationId={iteration?.id}
         boardLoading={boardLoading}
         boardError={boardError}
         board={board}
@@ -35,6 +36,7 @@ function BoardBody({
   iterationLoading,
   iterationError,
   hasIteration,
+  iterationId,
   boardLoading,
   boardError,
   board,
@@ -42,6 +44,7 @@ function BoardBody({
   iterationLoading: boolean;
   iterationError: unknown;
   hasIteration: boolean;
+  iterationId: string | undefined;
   boardLoading: boolean;
   boardError: unknown;
   board: ReturnType<typeof useTaskboard>['board'];
@@ -68,7 +71,7 @@ function BoardBody({
       <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading sprint…" />
     );
   if (boardError) return <ErrorMessage error={boardError} title="Could not load sprint" />;
-  if (!board) return null;
+  if (!board || !iterationId) return null;
 
   if (board.totals.cards === 0) {
     return (
@@ -80,7 +83,7 @@ function BoardBody({
     );
   }
 
-  return <BoardGrid data={board} />;
+  return <BoardGrid data={board} iterationId={iterationId} />;
 }
 
 function CenteredMessage({

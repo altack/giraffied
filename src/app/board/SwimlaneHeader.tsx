@@ -2,8 +2,9 @@ import { type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
-import { avatarColor, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
+import { parseTags, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
+import { Avatar } from './Avatar';
 
 function BannerShell({
   collapsed,
@@ -94,7 +95,11 @@ export function SwimlaneBanner({
       {points != null && (
         <span className="mono text-[11px] text-zinc-500 shrink-0">· {points} pts</span>
       )}
-      {assignee?.displayName && <TinyAvatar displayName={assignee.displayName} />}
+      {assignee?.displayName && (
+        <span className="ml-1 shrink-0">
+          <Avatar identity={assignee} size="xs" />
+        </span>
+      )}
     </BannerShell>
   );
 }
@@ -115,18 +120,5 @@ export function UnparentedBanner({
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint
       </span>
     </BannerShell>
-  );
-}
-
-function TinyAvatar({ displayName }: { displayName: string }) {
-  const { bg, fg } = avatarColor(displayName);
-  return (
-    <span
-      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold shrink-0"
-      style={{ backgroundColor: bg, color: fg }}
-      title={displayName}
-    >
-      {initialsOf(displayName)}
-    </span>
   );
 }

@@ -1,7 +1,8 @@
 import type { TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { cn } from '@/lib/cn';
-import { avatarColor, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
+import { parseTags, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
+import { Avatar } from './Avatar';
 
 export function TaskCard({ task }: { task: TaskOnBoard }) {
   const f = task.workItem.fields;
@@ -54,33 +55,9 @@ export function TaskCard({ task }: { task: TaskOnBoard }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {remaining != null && <span className="mono text-zinc-500">{remaining}h</span>}
-          <Assignee displayName={assignee?.displayName} />
+          <Avatar identity={assignee} size="sm" />
         </div>
       </div>
     </article>
-  );
-}
-
-function Assignee({ displayName }: { displayName: string | undefined }) {
-  if (!displayName) {
-    return (
-      <span
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-white/10 text-[9px] text-zinc-600"
-        title="Unassigned"
-      >
-        ?
-      </span>
-    );
-  }
-  const { bg, fg } = avatarColor(displayName);
-  const initials = initialsOf(displayName);
-  return (
-    <span
-      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold"
-      style={{ backgroundColor: bg, color: fg }}
-      title={displayName}
-    >
-      {initials}
-    </span>
   );
 }
