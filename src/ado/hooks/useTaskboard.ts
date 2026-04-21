@@ -40,6 +40,39 @@ function log(...args: unknown[]): void {
   console.debug('[jirafied]', ...args);
 }
 
+/**
+ * Default swimlane order until the user can drag-reorder (Phase 5+).
+ * Lower priority = higher on the board. Bugs end up at the bottom, Stories
+ * and PBIs at the top; unknown types slot in the middle alongside Tasks.
+ */
+const ROW_TYPE_PRIORITY: Record<string, number> = {
+  Feature: 0,
+  Epic: 1,
+  'User Story': 2,
+  'Product Backlog Item': 2,
+  Issue: 2,
+  Requirement: 2,
+  Task: 3,
+  Bug: 4,
+};
+
+function compareRows(a: AdoWorkItem, b: AdoWorkItem): number {
+  const pa = ROW_TYPE_PRIORITY[a.fields['System.WorkItemType']] ?? 3;
+  const pb = ROW_TYPE_PRIORITY[b.fields['System.WorkItemType']] ?? 3;
+  if (pa !== pb) return pa - pb;
+  return a.fields['System.Title'].localeCompare(b.fields['System.Title'], undefined, {
+    sensitivity: 'base',
+  });
+}
+
+function compareTasks(a: TaskOnBoard, b: TaskOnBoard): number {
+  return a.workItem.fields['System.Title'].localeCompare(
+    b.workItem.fields['System.Title'],
+    undefined,
+    { sensitivity: 'base' },
+  );
+}
+
 /** Server-side check that fires when a team has never saved taskboard-column config,
  *  and sometimes fires spuriously even for teams whose native UI clearly has columns. */
 function isColumnsNotCustomizedError(e: unknown): boolean {
@@ -305,12 +338,7 @@ async function loadTaskboard(
   const rowWorkItems = [...rowIdSet]
     .map((id) => byId.get(id))
     .filter((x): x is AdoWorkItem => x != null)
-    .sort((a, b) => {
-      const sa = (a.fields['Microsoft.VSTS.Common.StackRank'] as number | undefined) ?? Infinity;
-      const sb = (b.fields['Microsoft.VSTS.Common.StackRank'] as number | undefined) ?? Infinity;
-      if (sa !== sb) return sa - sb;
-      return a.id - b.id;
-    });
+    .sort(compareRows);
 
   const toTask = (id: number): TaskOnBoard | null => {
     const tb = cardsById.get(id);
@@ -324,14 +352,14 @@ async function loadTaskboard(
     const tasks = childIds
       .map(toTask)
       .filter((x): x is TaskOnBoard => x != null)
-      .sort((a, b) => a.taskboard.order - b.taskboard.order);
+      .sort(compareTasks);
     return { row, tasks };
   });
 
   const unparented = unparentedIds
     .map(toTask)
     .filter((x): x is TaskOnBoard => x != null)
-    .sort((a, b) => a.taskboard.order - b.taskboard.order);
+    .sort(compareTasks);
 
   const data: TaskboardData = {
     columns,
