@@ -190,26 +190,22 @@ async function loadTaskboard(
 ): Promise<TaskboardData> {
   log('loadTaskboard start', { projectId, teamId, iterationId });
 
-  const [relations, columnsRaw, itemsRaw] = await Promise.all([
+  // Step 1: fetch relations + column config in parallel. We need the column config first
+  // to decide whether `/taskboardworkitems` is worth calling — when the team hasn't
+  // customized columns it's guaranteed to 400, so skip it.
+  const [relations, columnsRaw] = await Promise.all([
     tryFetch('iterations/workitems', () =>
       getIterationWorkItems(projectId, teamId, iterationId),
     ),
     tryFetch('taskboardcolumns', () => getTaskboardColumns(projectId, teamId)),
-    tryFetch('taskboardworkitems', () =>
-      getTaskboardWorkItems(projectId, teamId, iterationId),
-    ),
   ]);
 
-  // relations failure is fatal — we need the tree to build swimlanes
   const relationsData = unwrap(relations, () => false);
   if (!relationsData) throw new Error('Unreachable');
 
-  // Both taskboard endpoints tolerate the "not customized" 400.
   const columnsResultRaw = unwrap(columnsRaw, isColumnsNotCustomizedError);
-  const itemsResult = unwrap(itemsRaw, isColumnsNotCustomizedError);
-
-  // `{columns: [], isCustomized: false}` means "team hasn't customized" — treat as null
-  // so we fall through to per-state synthesis matching the native default rendering.
+  // `{columns: [], isCustomized: false}` means the team hasn't customized — treat as
+  // null so we skip the guaranteed-to-fail items call and go straight to synthesis.
   const columnsResult =
     columnsResultRaw &&
     columnsResultRaw.isCustomized !== false &&
@@ -218,9 +214,22 @@ async function loadTaskboard(
       : null;
 
   log('relations', { relationCount: relationsData.workItemRelations.length });
-  log('taskboard endpoints', {
-    hasColumns: !!columnsResult,
+  log('column config', {
+    hasCustomColumns: !!columnsResult,
     isCustomized: columnsResultRaw?.isCustomized,
+  });
+
+  // Step 2: only hit /taskboardworkitems when the team HAS customized columns.
+  const itemsResult = columnsResult
+    ? unwrap(
+        await tryFetch('taskboardworkitems', () =>
+          getTaskboardWorkItems(projectId, teamId, iterationId),
+        ),
+        isColumnsNotCustomizedError,
+      )
+    : null;
+  log('taskboard items', {
+    attempted: !!columnsResult,
     hasItems: !!itemsResult,
     itemCount: itemsResult?.value.length,
   });
