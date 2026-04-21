@@ -17,7 +17,7 @@ export function Board() {
   } = useTaskboard();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <TopBar iteration={iteration ?? undefined} onRefresh={refetch} isFetching={isFetching} />
       <BoardBody
         iterationLoading={iterationLoading}

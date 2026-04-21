@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import type { AdoTaskboardColumn } from '@/ado/types';
@@ -7,7 +7,7 @@ import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 
 interface Row {
   key: string;
-  banner: ReactNode;
+  banner: (props: { collapsed: boolean; onToggle: () => void }) => ReactNode;
   tasks: TaskOnBoard[];
 }
 
@@ -17,14 +17,25 @@ function isDoneColumn(name: string): boolean {
 
 export function BoardGrid({ data }: { data: TaskboardData }) {
   const { columns, swimlanes, unparented } = data;
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const rows: Row[] = swimlanes.map((lane) => ({
     key: `lane-${lane.row.id}`,
-    banner: (
+    banner: ({ collapsed, onToggle }) => (
       <SwimlaneBanner
         row={lane.row}
         totalTasks={lane.tasks.length}
         points={lane.row.fields['Microsoft.VSTS.Scheduling.StoryPoints']}
+        collapsed={collapsed}
+        onToggle={onToggle}
       />
     ),
     tasks: lane.tasks,
@@ -32,7 +43,9 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
   if (unparented.length > 0) {
     rows.push({
       key: 'lane-unparented',
-      banner: <UnparentedBanner totalTasks={unparented.length} />,
+      banner: ({ collapsed, onToggle }) => (
+        <UnparentedBanner totalTasks={unparented.length} collapsed={collapsed} onToggle={onToggle} />
+      ),
       tasks: unparented,
     });
   }
@@ -42,8 +55,8 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
   return (
     <div className="flex-1 overflow-auto">
       <div className="min-w-max px-5 pt-3 pb-6 space-y-3">
-        {/* Column header row — sticky, blurred pane to cover scrolling cards underneath */}
-        <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/60 backdrop-blur-md border-b border-white/[0.04]">
+        {/* Sticky column header row — stays pinned under the TopBar when scrolling */}
+        <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/75 backdrop-blur-lg border-b border-white/[0.05]">
           <div className="grid gap-3" style={{ gridTemplateColumns }}>
             {columns.map((col) => (
               <ColumnHeader
@@ -58,19 +71,24 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
           </div>
         </div>
 
-        {rows.map((row) => (
-          <Fragment key={row.key}>
-            {row.banner}
-            <div className="grid gap-3" style={{ gridTemplateColumns }}>
-              {columns.map((col) => (
-                <ColumnCell
-                  key={col.id}
-                  tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
-                />
-              ))}
-            </div>
-          </Fragment>
-        ))}
+        {rows.map((row) => {
+          const isCollapsed = collapsed.has(row.key);
+          return (
+            <Fragment key={row.key}>
+              {row.banner({ collapsed: isCollapsed, onToggle: () => toggle(row.key) })}
+              {!isCollapsed && (
+                <div className="grid gap-3" style={{ gridTemplateColumns }}>
+                  {columns.map((col) => (
+                    <ColumnCell
+                      key={col.id}
+                      tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Fragment>
+          );
+        })}
       </div>
     </div>
   );

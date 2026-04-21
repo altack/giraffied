@@ -1,15 +1,50 @@
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
+import { cn } from '@/lib/cn';
 import { avatarColor, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
+
+function BannerShell({
+  collapsed,
+  onToggle,
+  children,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left',
+        'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
+      )}
+      aria-expanded={!collapsed}
+    >
+      <ChevronDown
+        className={cn(
+          'h-3.5 w-3.5 text-zinc-500 shrink-0 transition-transform duration-150',
+          collapsed && '-rotate-90',
+        )}
+      />
+      {children}
+    </button>
+  );
+}
 
 export function SwimlaneBanner({
   row,
   totalTasks,
   points,
+  collapsed,
+  onToggle,
 }: {
   row: AdoWorkItem;
   totalTasks: number;
   points?: number;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const f = row.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
@@ -17,8 +52,7 @@ export function SwimlaneBanner({
   const assignee = f['System.AssignedTo'];
 
   return (
-    <div className="flex items-center gap-2 py-1 text-[13.5px]">
-      <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+    <BannerShell collapsed={collapsed} onToggle={onToggle}>
       <span
         className="h-1.5 w-1.5 rounded-full shrink-0"
         style={{ backgroundColor: type.dot }}
@@ -46,19 +80,26 @@ export function SwimlaneBanner({
         <span className="mono text-[11px] text-zinc-500 shrink-0">· {points} pts</span>
       )}
       {assignee?.displayName && <TinyAvatar displayName={assignee.displayName} />}
-    </div>
+    </BannerShell>
   );
 }
 
-export function UnparentedBanner({ totalTasks }: { totalTasks: number }) {
+export function UnparentedBanner({
+  totalTasks,
+  collapsed,
+  onToggle,
+}: {
+  totalTasks: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <div className="flex items-center gap-2 py-1 text-[13.5px]">
-      <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+    <BannerShell collapsed={collapsed} onToggle={onToggle}>
       <span className="text-zinc-300 font-medium">Everything else</span>
       <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint
       </span>
-    </div>
+    </BannerShell>
   );
 }
 
