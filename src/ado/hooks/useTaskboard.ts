@@ -35,8 +35,13 @@ export interface TaskboardData {
   columnsFallback: boolean;
 }
 
-/** Server-side check that fires when a team has never saved taskboard-column config
- *  (and sometimes fires spuriously for orgs where the endpoint disagrees with the UI). */
+function log(...args: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.debug('[jirafied]', ...args);
+}
+
+/** Server-side check that fires when a team has never saved taskboard-column config,
+ *  and sometimes fires spuriously even for teams whose native UI clearly has columns. */
 function isColumnsNotCustomizedError(e: unknown): boolean {
   return (
     e instanceof AdoError &&
@@ -45,7 +50,6 @@ function isColumnsNotCustomizedError(e: unknown): boolean {
   );
 }
 
-/** Sort key for fallback column ordering based on common state names. Unknown → middle. */
 const COLUMN_ORDER_HINTS: Record<string, number> = {
   'to do': 0,
   new: 0,
@@ -77,7 +81,6 @@ function columnOrderHint(name: string): number {
   return COLUMN_ORDER_HINTS[name.trim().toLowerCase()] ?? 50;
 }
 
-/** Derive column list from the taskboardworkitems response when the config endpoint refuses. */
 function deriveColumnsFromItems(items: AdoTaskboardWorkItem[]): AdoTaskboardColumn[] {
   const byId = new Map<string, { name: string; sampleStates: Map<string, string> }>();
   for (const it of items) {
@@ -88,13 +91,11 @@ function deriveColumnsFromItems(items: AdoTaskboardWorkItem[]): AdoTaskboardColu
     }
     entry.sampleStates.set(it.workItemType, it.state);
   }
-
   const cols = [...byId.entries()].map(([id, { name, sampleStates }]) => ({
     id,
     name,
     mappings: Object.fromEntries(sampleStates),
   }));
-
   cols.sort((a, b) => {
     const diff = columnOrderHint(a.name) - columnOrderHint(b.name);
     return diff !== 0 ? diff : a.name.localeCompare(b.name);
@@ -102,8 +103,6 @@ function deriveColumnsFromItems(items: AdoTaskboardWorkItem[]): AdoTaskboardColu
   return cols;
 }
 
-/** Last-resort synthesis when both taskboard endpoints are unusable. Builds columns from the
- *  Task work-item-type's state categories, the way the native UI does on first use. */
 function synthesizeFromWorkItemType(taskType: AdoWorkItemType): {
   columns: AdoTaskboardColumn[];
   stateToColumnId: Map<string, string>;
@@ -128,11 +127,7 @@ function synthesizeFromWorkItemType(taskType: AdoWorkItemType): {
     for (const n of inProgress) stateToColumnId.set(n, COL.doing);
   }
   if (done.length) {
-    columns.push({
-      id: COL.done,
-      name: 'Done',
-      mappings: { Task: done[done.length - 1] },
-    });
+    columns.push({ id: COL.done, name: 'Done', mappings: { Task: done[done.length - 1] } });
     for (const n of done) stateToColumnId.set(n, COL.done);
   }
   return { columns, stateToColumnId };
@@ -142,17 +137,19 @@ function synthesizeItemsFromWorkItems(
   workItems: AdoWorkItem[],
   columns: AdoTaskboardColumn[],
   stateToColumnId: Map<string, string>,
+  cardTypes: Set<string>,
 ): AdoTaskboardWorkItem[] {
   const colName = new Map(columns.map((c) => [c.id, c.name]));
   const out: AdoTaskboardWorkItem[] = [];
   for (const wi of workItems) {
-    if (wi.fields['System.WorkItemType'] !== 'Task') continue;
+    const type = wi.fields['System.WorkItemType'];
+    if (!cardTypes.has(type)) continue;
     const state = wi.fields['System.State'];
     const columnId = stateToColumnId.get(state);
     if (!columnId) continue;
     out.push({
       id: wi.id,
-      workItemType: 'Task',
+      workItemType: type,
       state,
       column: colName.get(columnId) ?? '',
       columnId,
@@ -162,49 +159,100 @@ function synthesizeItemsFromWorkItems(
   return out;
 }
 
+async function tryFetch<T>(label: string, fn: () => Promise<T>): Promise<T | { __err: unknown }> {
+  const start = performance.now();
+  try {
+    const result = await fn();
+    log(`${label} ok in ${Math.round(performance.now() - start)}ms`);
+    return result;
+  } catch (e) {
+    log(`${label} failed in ${Math.round(performance.now() - start)}ms`, e);
+    return { __err: e };
+  }
+}
+
+function unwrap<T>(r: T | { __err: unknown }, rethrowUnless: (e: unknown) => boolean): T | null {
+  if (r && typeof r === 'object' && '__err' in r) {
+    if (rethrowUnless(r.__err)) return null;
+    throw r.__err;
+  }
+  return r;
+}
+
 async function loadTaskboard(
   projectId: string,
   teamId: string,
   iterationId: string,
 ): Promise<TaskboardData> {
-  const [relations, columnsResult, itemsResult] = await Promise.all([
-    getIterationWorkItems(projectId, teamId, iterationId),
-    getTaskboardColumns(projectId, teamId).catch((e: unknown) => {
-      if (isColumnsNotCustomizedError(e)) return null;
-      throw e;
-    }),
-    getTaskboardWorkItems(projectId, teamId, iterationId).catch((e: unknown) => {
-      if (isColumnsNotCustomizedError(e)) return null;
-      throw e;
-    }),
+  log('loadTaskboard start', { projectId, teamId, iterationId });
+
+  const [relations, columnsRaw, itemsRaw] = await Promise.all([
+    tryFetch('iterations/workitems', () =>
+      getIterationWorkItems(projectId, teamId, iterationId),
+    ),
+    tryFetch('taskboardcolumns', () => getTaskboardColumns(projectId, teamId)),
+    tryFetch('taskboardworkitems', () =>
+      getTaskboardWorkItems(projectId, teamId, iterationId),
+    ),
   ]);
 
+  // relations failure is fatal — we need the tree to build swimlanes
+  const relationsData = unwrap(relations, () => false);
+  if (!relationsData) throw new Error('Unreachable');
+
+  // Both taskboard endpoints tolerate the "not customized" 400
+  const columnsResult = unwrap(columnsRaw, isColumnsNotCustomizedError);
+  const itemsResult = unwrap(itemsRaw, isColumnsNotCustomizedError);
+
+  log('relations', { relationCount: relationsData.workItemRelations.length });
+  log('taskboard endpoints', {
+    hasColumns: !!columnsResult,
+    hasItems: !!itemsResult,
+    itemCount: itemsResult?.value.length,
+  });
+
   const ids = new Set<number>();
-  for (const r of relations.workItemRelations) {
+  for (const r of relationsData.workItemRelations) {
     ids.add(r.target.id);
     if (r.source) ids.add(r.source.id);
   }
   if (itemsResult) for (const t of itemsResult.value) ids.add(t.id);
 
+  log('fetching work items', { count: ids.size });
   const workItems = await getWorkItemsBatch(projectId, [...ids]);
+  log('work items fetched', { count: workItems.length });
 
   let columns: AdoTaskboardColumn[];
   let taskboardItems: AdoTaskboardWorkItem[];
   let columnsFallback = false;
 
-  if (itemsResult && columnsResult) {
-    columns = columnsResult.columns;
+  if (itemsResult) {
     taskboardItems = itemsResult.value;
-  } else if (itemsResult && !columnsResult) {
-    columns = deriveColumnsFromItems(itemsResult.value);
-    taskboardItems = itemsResult.value;
-    columnsFallback = true;
+    if (columnsResult) {
+      columns = columnsResult.columns;
+    } else {
+      columns = deriveColumnsFromItems(itemsResult.value);
+      columnsFallback = true;
+      log('columns derived from items', { columns: columns.map((c) => c.name) });
+    }
   } else {
+    // No authoritative taskboard items — synthesize from Task type state categories.
+    columnsFallback = true;
+    log('full synthesis path — fetching Task work-item-type');
     const taskType = await getWorkItemType(projectId, 'Task');
     const synth = synthesizeFromWorkItemType(taskType);
-    columns = columnsResult ? columnsResult.columns : synth.columns;
-    taskboardItems = synthesizeItemsFromWorkItems(workItems, columns, synth.stateToColumnId);
-    columnsFallback = !columnsResult;
+    columns = synth.columns;
+    const cardTypes = new Set(['Task']);
+    taskboardItems = synthesizeItemsFromWorkItems(
+      workItems,
+      columns,
+      synth.stateToColumnId,
+      cardTypes,
+    );
+    log('synthesis complete', {
+      columns: columns.map((c) => c.name),
+      itemCount: taskboardItems.length,
+    });
   }
 
   const byId = new Map<number, AdoWorkItem>();
@@ -212,7 +260,7 @@ async function loadTaskboard(
 
   const parentOf = new Map<number, number>();
   const childrenByParent = new Map<number, Set<number>>();
-  for (const r of relations.workItemRelations) {
+  for (const r of relationsData.workItemRelations) {
     if (!r.source) continue;
     parentOf.set(r.target.id, r.source.id);
     const children = childrenByParent.get(r.source.id) ?? new Set<number>();
@@ -262,7 +310,7 @@ async function loadTaskboard(
     .filter((x): x is TaskOnBoard => x != null)
     .sort((a, b) => a.taskboard.order - b.taskboard.order);
 
-  return {
+  const data: TaskboardData = {
     columns,
     swimlanes,
     unparented,
@@ -272,6 +320,13 @@ async function loadTaskboard(
     },
     columnsFallback,
   };
+  log('loadTaskboard done', {
+    columns: columns.length,
+    swimlanes: swimlanes.length,
+    unparented: unparented.length,
+    cards: taskboardItems.length,
+  });
+  return data;
 }
 
 export function useTaskboard() {
@@ -286,6 +341,7 @@ export function useTaskboard() {
     enabled: !!projectId && !!teamId && !!iterationId,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
+    retry: false,
   });
 
   return {
