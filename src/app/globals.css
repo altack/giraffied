@@ -173,6 +173,79 @@ body {
 }
 .jfd-trix .trix-content ul, .jfd-trix .trix-content ol { padding-left: 20px; margin: 4px 0; }
 
+/* --- Variants: plain (description) + minimal (comment composer) ---------
+ * Both hide the toolbar until the editor is focused, matching the click-to-edit
+ * pattern of the title. Using :focus-within avoids any React gymnastics. */
+.jfd-trix--plain trix-toolbar,
+.jfd-trix--minimal trix-toolbar {
+  display: none;
+}
+.jfd-trix--plain:focus-within trix-toolbar,
+.jfd-trix--minimal:focus-within trix-toolbar {
+  display: block;
+}
+
+/* Once any editor in a modal has been focused, every plain/minimal editor in
+ * that modal keeps its toolbar visible for the rest of the session. This kills
+ * the click-race where a blur collapses the toolbar mid-click and buttons move
+ * out from under the cursor. The React side opts in by adding `jfd-trix--open`. */
+.jfd-trix--plain.jfd-trix--open trix-toolbar,
+.jfd-trix--minimal.jfd-trix--open trix-toolbar {
+  display: block;
+}
+
+/* Plain variant: looks like prose until you click it. */
+.jfd-trix--plain trix-editor {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+.jfd-trix--plain trix-editor:empty::before {
+  opacity: 0.7;
+}
+
+/* Minimal variant: slimmer default size for comment composers. */
+.jfd-trix--minimal trix-editor {
+  min-height: 60px;
+}
+
+
+/* --- Read-only comment body rendering ----------------------------------- */
+.jfd-comment-body > :first-child { margin-top: 0; }
+.jfd-comment-body > :last-child { margin-bottom: 0; }
+.jfd-comment-body p { margin: 4px 0; }
+.jfd-comment-body ul, .jfd-comment-body ol { padding-left: 20px; margin: 4px 0; }
+.jfd-comment-body blockquote {
+  border-left: 2px solid rgb(255 255 255 / 0.14);
+  padding: 2px 0 2px 10px;
+  color: var(--color-ink-muted);
+  margin: 4px 0;
+  font-size: 12px;
+}
+.jfd-comment-body pre {
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-x: auto;
+}
+.jfd-comment-body code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgb(255 255 255 / 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.jfd-comment-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: rgb(129 140 248 / 0.4);
+  text-underline-offset: 2px;
+}
+.jfd-comment-body strong { color: inherit; }
+
+
 /* Scrollbar refinement — thin, hairline, only visible on hover. */
 *::-webkit-scrollbar {
   width: 10px;

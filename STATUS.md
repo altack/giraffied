@@ -1,6 +1,6 @@
 # Jirafied — Status
 
-Last worked on: **2026-04-21** (Phase 6 landed)
+Last worked on: **2026-04-21** (Phase 6 shell reworked + ADO Comments)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -61,6 +61,36 @@ A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azu
 - Modal dropped Remaining Work and Tags fields (not needed in v1).
 - `DEFAULT_WORKITEM_FIELDS` extended with `System.Description`, `System.Rev`, `Microsoft.VSTS.Scheduling.CompletedWork`.
 - New endpoint `listWorkItemUpdates(projectId, id)` wrapping `GET /_apis/wit/workitems/{id}/updates`.
+
+### Phase 6 v2 — Jira-shaped modal with real Comments ✅
+Shell is now **fixed height** (no more jumping when tabs switch or content grows) with a **two-column layout**: main area + 280px right sidebar, each with independent scroll. Both stay visible at all times, footer (Cancel / Save) is pinned.
+
+- **Sidebar** (editable fields, always reachable): Status · Assignee · Story Points · **Tags** (re-introduced — chip input, ×/Backspace/Enter/`;`/`,` behavior) · Time tracking.
+- **Main** (title + description + activity tabs).
+- **Activity tabs** (segmented control, `Tabs` primitive): **Comments** · **Work Log** · **History**.
+- **Comments** (`CommentsPanel.tsx`) — real ADO comments via `/wit/workItems/{id}/comments` (`7.1-preview.4`, `format=html` on POST, no format param on PATCH since some orgs 400 on it). Flat thread under the composer, newest first. Each row: avatar · author · relative time · "edited" indicator · hover-reveal actions. **Edit / Delete on own comments** only. Own-comment detection (`isOwnComment`) tries `authenticatedUser.id === createdBy.id` first, falls back to `mailAddress ↔ uniqueName` — needed because ADO emits different id flavors for /connectionData vs /comments across orgs. List response normalizes `id` → `commentId` (ADO Services returns the id under `id` in some tenants despite the docs showing `commentId`). Composer + in-place edit both use the **minimal** Trix variant.
+- **Work Log** (`WorkLogPanel.tsx`) — reconstructed from `/updates` filtered to `CompletedWork` diffs. "By person" card with proportional bars + per-entry timeline with `+/-Nh` running totals. Logging time from the sidebar invalidates the updates query so this tab refreshes in place.
+- **History** — extracted to `HistoryPanel.tsx`, same logic as before.
+
+**Editor UX**
+- `DescriptionEditor` grew a `variant` prop: `default` (form field — always shows toolbar), `plain` (description — no border, looks like prose until you click it, toolbar appears on focus), `minimal` (comment composer / in-place edit — has border, toolbar hidden until focus).
+- **Per-editor sticky toolbar**: once *this* editor has been focused, its toolbar stays visible for the rest of its lifetime. Prevents the blur→collapse→click-race bug where Send/Save jumped up as the user clicked it. Each editor's `unlocked` is local — other editors stay collapsed, and the `WorkItemModal` is keyed on `task.workItem.id` so a task switch mounts a clean tree.
+- New `autoFocus` prop — fires after `trix-initialize`, places cursor at end, flips the toolbar open. Used by the in-place comment editor so Edit is one click, not two.
+- **Initial-load fix**: `emittedHtml.current` now starts as `''` (not the initial `value`), so the first pass always calls `editor.loadHTML(value)` instead of relying on Trix's hidden-input auto-load. The auto-load was occasionally leaving HTML unparsed (description rendered as literal text).
+- Trix CSS overrides under `.jfd-trix` match the dark pearled aesthetic; new variant selectors `.jfd-trix--plain`, `.jfd-trix--minimal`, and `.jfd-trix--open` (the sticky state).
+
+**Swimlane banners**
+- Clicking a banner now opens the parent work item in the modal; the chevron is its own `<button>` that stops propagation and toggles collapse. `selectedTask` resolution also looks up `lane.row`, `applyDraftToTaskboard` patches `lane.row` for optimistic updates. (Status dropdown shows current state only when the column config doesn't map the parent type — full work-item-type state fetch is a later polish pass.)
+
+**Plumbing**
+- New endpoints: `listWorkItemComments`, `createWorkItemComment`, `updateWorkItemComment`, `deleteWorkItemComment`, `getConnectionData`.
+- New hooks: `useComments`, `useCurrentUser`.
+- New types: `AdoWorkItemComment`, `AdoCommentList`, `AdoConnectionData`.
+- **JSON-Patch semantics fix**: `patchWorkItemFields` now emits `op: "remove"` (no value) when the field value is `null` or `''`, instead of `op: "add"` with empty value. ADO silently no-ops `System.Tags = ""` via `add`; only `remove` actually clears it. Same path reliably clears `System.AssignedTo`, `StoryPoints`, description, etc.
+- **Nested-form bug** fixed — the comment composer was a `<form>` inside the outer `workitem-form`. Browsers handle nested React-rendered forms inconsistently; clicking Send was submitting the wrong one and reloading the page. Composer is now a `<div>` + plain button.
+
+**Draggable modal**
+- `maxHeightVh` → `heightVh` + `fixedHeight` prop. When fixed, uses `height: Xvh` (not `max-height`) so the dialog is exactly that tall regardless of content. Body container is `min-h-0 overflow-hidden` so children own their scroll.
 
 ---
 

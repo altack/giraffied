@@ -165,6 +165,42 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'Microsoft.VSTS.Common.StackRank',
 ] as const;
 
+/** A single work-item comment from `GET /wit/workItems/{id}/comments`.
+ *  `text` is HTML when the list was fetched with `format=html` (our default). */
+export interface AdoWorkItemComment {
+  workItemId: number;
+  commentId: number;
+  version: number;
+  text: string;
+  createdBy: AdoIdentity;
+  createdDate: string;
+  modifiedBy?: AdoIdentity;
+  modifiedDate?: string;
+  isDeleted?: boolean;
+  url?: string;
+}
+
+export interface AdoCommentList {
+  totalCount: number;
+  count: number;
+  comments: AdoWorkItemComment[];
+  continuationToken?: string;
+  nextPage?: string;
+}
+
+/** Reply from `GET /_apis/connectionData`. We only care about the authenticated user id. */
+export interface AdoConnectionData {
+  authenticatedUser: {
+    id: string;
+    providerDisplayName?: string;
+    customDisplayName?: string;
+    mailAddress?: string;
+    descriptor?: string;
+    subjectDescriptor?: string;
+  };
+  authorizedUser?: AdoConnectionData['authenticatedUser'];
+}
+
 /** Shape of an item returned from `GET /wit/workitems/{id}/updates`. Each entry is a
  *  revision event — the diff of fields between revs and the person who made it. */
 export interface AdoWorkItemUpdate {

@@ -35,7 +35,7 @@ export function workItemTypeStyle(type: string): WorkItemTypeVisual {
       return { label: 'Task', dot: '#f59e0b' }; // amber
     case 'Bug':
       return { label: 'Bug', dot: '#ef4444' }; // red
-    case 'User Story':
+    case 'Story':
       return { label: 'Story', dot: '#38bdf8' }; // sky
     case 'Product Backlog Item':
       return { label: 'PBI', dot: '#38bdf8' };

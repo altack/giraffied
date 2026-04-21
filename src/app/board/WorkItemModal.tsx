@@ -5,16 +5,28 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type KeyboardEvent,
 } from 'react';
-import { AlertCircle, ChevronDown, Clock, Loader2, Plus, UserX } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  AlertCircle,
+  ChevronDown,
+  Clock,
+  History as HistoryIcon,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Timer,
+  UserX,
+  X,
+} from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DraggableModal } from '@/components/ui/draggable-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs } from '@/components/ui/tabs';
 import { AdoError } from '@/ado/client';
 import type { AdoFieldPatch } from '@/ado/endpoints';
 import {
-  listWorkItemUpdates,
   patchWorkItemField,
   patchWorkItemFields,
 } from '@/ado/endpoints';
@@ -22,24 +34,31 @@ import type {
   AdoIdentity,
   AdoTaskboardColumn,
   AdoWorkItem,
-  AdoWorkItemUpdate,
 } from '@/ado/types';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
+import { useComments } from '@/ado/hooks/useComments';
 import { useTeamMembers } from '@/ado/hooks/useTeamMembers';
 import { useSettings } from '@/state/settings.store';
+import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
+import { CommentsPanel } from './CommentsPanel';
 import { CopyLinkButton } from './CopyLinkButton';
 import { DescriptionEditor } from './DescriptionEditor';
+import { HistoryPanel } from './HistoryPanel';
+import { WorkLogPanel } from './WorkLogPanel';
+import { formatHours } from './timeFormat';
 import { workItemTypeStyle } from './workItemVisuals';
-import { cn } from '@/lib/cn';
 
 const NUMBER_RE = /^-?\d*(\.\d*)?$/;
+
+type ActivityTab = 'comments' | 'worklog' | 'history';
 
 interface Draft {
   title: string;
   state: string;
   assignee: AdoIdentity | null;
   storyPoints: string;
+  tags: string[];
   description: string;
 }
 
@@ -50,8 +69,25 @@ function toDraft(task: TaskOnBoard): Draft {
     state: f['System.State'] ?? '',
     assignee: f['System.AssignedTo'] ?? null,
     storyPoints: numToStr(f['Microsoft.VSTS.Scheduling.StoryPoints']),
+    tags: splitTags(f['System.Tags']),
     description: f['System.Description'] ?? '',
   };
+}
+
+function splitTags(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[;,]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+function joinTags(tags: string[]): string {
+  return tags.join('; ');
+}
+function tagsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 function numToStr(n: number | undefined): string {
@@ -93,6 +129,9 @@ function buildPatches(
     if (v === 'invalid') return { patches: [], error: 'Story Points must be a number' };
     patches.push({ field: 'Microsoft.VSTS.Scheduling.StoryPoints', value: v });
   }
+  if (!tagsEqual(draft.tags, original.tags)) {
+    patches.push({ field: 'System.Tags', value: joinTags(draft.tags) });
+  }
   if (draft.description !== original.description) {
     patches.push({ field: 'System.Description', value: draft.description });
   }
@@ -108,22 +147,27 @@ function applyDraftToTaskboard(
   const mappedCol = data.columns.find(
     (c) => (c.mappings[wiType] ?? null) === draft.state,
   );
-  const patched = (task: TaskOnBoard): TaskOnBoard => {
-    if (task.workItem.id !== workItemId) return task;
+
+  const patchFields = (fields: AdoWorkItem['fields']): AdoWorkItem['fields'] => {
     const sp = parseOptionalNumber(draft.storyPoints);
-    const nextFields: AdoWorkItem['fields'] = {
-      ...task.workItem.fields,
-      'System.Title': draft.title.trim() || task.workItem.fields['System.Title'],
+    return {
+      ...fields,
+      'System.Title': draft.title.trim() || fields['System.Title'],
       'System.State': draft.state,
       'System.AssignedTo': draft.assignee ?? undefined,
       'System.Description': draft.description,
+      'System.Tags': joinTags(draft.tags),
       'Microsoft.VSTS.Scheduling.StoryPoints':
         sp === 'invalid'
-          ? task.workItem.fields['Microsoft.VSTS.Scheduling.StoryPoints']
+          ? fields['Microsoft.VSTS.Scheduling.StoryPoints']
           : (sp as number | null) ?? undefined,
     };
+  };
+
+  const patchCard = (task: TaskOnBoard): TaskOnBoard => {
+    if (task.workItem.id !== workItemId) return task;
     return {
-      workItem: { ...task.workItem, fields: nextFields },
+      workItem: { ...task.workItem, fields: patchFields(task.workItem.fields) },
       taskboard: mappedCol
         ? {
             ...task.taskboard,
@@ -134,13 +178,18 @@ function applyDraftToTaskboard(
         : { ...task.taskboard, state: draft.state },
     };
   };
+
+  const patchRow = (row: AdoWorkItem): AdoWorkItem =>
+    row.id === workItemId ? { ...row, fields: patchFields(row.fields) } : row;
+
   return {
     ...data,
     swimlanes: data.swimlanes.map((lane) => ({
       ...lane,
-      tasks: lane.tasks.map(patched),
+      row: patchRow(lane.row),
+      tasks: lane.tasks.map(patchCard),
     })),
-    unparented: data.unparented.map(patched),
+    unparented: data.unparented.map(patchCard),
   };
 }
 
@@ -188,6 +237,7 @@ export function WorkItemModal({
   const original = useMemo(() => toDraft(task), [task]);
   const [draft, setDraft] = useState<Draft>(original);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<ActivityTab>('comments');
 
   useEffect(() => {
     setDraft(original);
@@ -204,6 +254,7 @@ export function WorkItemModal({
     draft.state !== original.state ||
     (draft.assignee?.uniqueName ?? null) !== (original.assignee?.uniqueName ?? null) ||
     draft.storyPoints !== original.storyPoints ||
+    !tagsEqual(draft.tags, original.tags) ||
     draft.description !== original.description;
 
   const save = useMutation({
@@ -251,11 +302,16 @@ export function WorkItemModal({
     save.mutate();
   }
 
+  // Preload comments count for the tab badge (enabled only while modal is open).
+  const comments = useComments(task.workItem.id, open && tab === 'comments');
+
   return (
     <DraggableModal
       open={open}
       onClose={onClose}
-      width={640}
+      width={940}
+      heightVh={88}
+      fixedHeight
       title={
         <span className="flex items-center gap-1.5 min-w-0">
           <span
@@ -297,28 +353,100 @@ export function WorkItemModal({
         </>
       }
     >
-      <form
-        id="workitem-form"
-        onSubmit={handleSubmit}
-        className="px-5 py-4 space-y-5"
-      >
-        <textarea
-          autoFocus
-          value={draft.title}
-          onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-          rows={2}
-          className={cn(
-            'w-full rounded-md px-3 py-2 resize-none',
-            'text-[16px] leading-[1.35] font-medium text-zinc-50',
-            'bg-transparent border border-transparent',
-            'hover:bg-white/[0.02] hover:border-white/[0.04]',
-            'focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
-            'transition-colors duration-150',
-          )}
-        />
+      <div className="flex h-full min-h-0">
+        <form
+          id="workitem-form"
+          onSubmit={handleSubmit}
+          className="flex-1 min-w-0 overflow-y-auto px-5 py-4 space-y-4"
+        >
+          <textarea
+            autoFocus
+            value={draft.title}
+            onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+            rows={1}
+            className={cn(
+              'w-full rounded-md px-3 py-2 resize-none',
+              'text-[17px] leading-[1.3] font-medium text-zinc-50',
+              'bg-transparent border border-transparent',
+              'hover:bg-white/[0.02] hover:border-white/[0.04]',
+              'focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
+              'transition-colors duration-150',
+            )}
+          />
 
-        <div className="grid grid-cols-[1fr_1.4fr_auto] gap-2.5">
-          <FieldCell label="Status">
+          <Section label="Description">
+            <DescriptionEditor
+              value={draft.description}
+              onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
+              variant="plain"
+              placeholder="Add a description…"
+            />
+          </Section>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Activity
+              </div>
+              <Tabs<ActivityTab>
+                value={tab}
+                onChange={setTab}
+                items={[
+                  {
+                    value: 'comments',
+                    label: (
+                      <span className="inline-flex items-center gap-1.5">
+                        <MessageSquare className="h-3 w-3" />
+                        Comments
+                      </span>
+                    ),
+                    badge: comments.data?.length ?? undefined,
+                  },
+                  {
+                    value: 'worklog',
+                    label: (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Timer className="h-3 w-3" />
+                        Work Log
+                      </span>
+                    ),
+                  },
+                  {
+                    value: 'history',
+                    label: (
+                      <span className="inline-flex items-center gap-1.5">
+                        <HistoryIcon className="h-3 w-3" />
+                        History
+                      </span>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+            <div className="min-h-[80px]">
+              {tab === 'comments' && (
+                <CommentsPanel workItemId={task.workItem.id} enabled={open} />
+              )}
+              {tab === 'worklog' && (
+                <WorkLogPanel
+                  workItemId={task.workItem.id}
+                  projectId={projectId}
+                  enabled={open}
+                />
+              )}
+              {tab === 'history' && (
+                <HistoryPanel
+                  workItemId={task.workItem.id}
+                  projectId={projectId}
+                  enabled={open}
+                />
+              )}
+            </div>
+          </div>
+        </form>
+
+        <aside className="w-[280px] shrink-0 overflow-y-auto border-l border-white/[0.06] bg-white/[0.015] px-4 py-4 space-y-4">
+          <SidebarField label="Status">
             <div className="relative">
               <select
                 value={draft.state}
@@ -338,15 +466,15 @@ export function WorkItemModal({
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
             </div>
-          </FieldCell>
-          <FieldCell label="Assignee">
+          </SidebarField>
+          <SidebarField label="Assignee">
             <AssigneePicker
               value={draft.assignee}
               onChange={(a) => setDraft((d) => ({ ...d, assignee: a }))}
               boardAssignees={boardAssignees}
             />
-          </FieldCell>
-          <FieldCell label="Points">
+          </SidebarField>
+          <SidebarField label="Story Points">
             <Input
               inputMode="decimal"
               value={draft.storyPoints}
@@ -354,33 +482,27 @@ export function WorkItemModal({
                 setDraft((d) => ({ ...d, storyPoints: e.target.value }))
               }
               placeholder="—"
-              className="w-16 text-center"
+              className="w-24"
             />
-          </FieldCell>
-        </div>
-
-        <Section label="Description">
-          <DescriptionEditor
-            value={draft.description}
-            onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
-          />
-        </Section>
-
-        <Section label="Time tracking">
-          <TimeTracking
-            workItemId={task.workItem.id}
-            projectId={projectId}
-            currentCompleted={
-              task.workItem.fields['Microsoft.VSTS.Scheduling.CompletedWork'] ?? 0
-            }
-            queryKey={queryKey}
-          />
-        </Section>
-
-        <Section label="History">
-          <HistoryPanel workItemId={task.workItem.id} projectId={projectId} open={open} />
-        </Section>
-      </form>
+          </SidebarField>
+          <SidebarField label="Tags">
+            <TagsEditor
+              tags={draft.tags}
+              onChange={(tags) => setDraft((d) => ({ ...d, tags }))}
+            />
+          </SidebarField>
+          <SidebarField label="Time tracking">
+            <TimeTracking
+              workItemId={task.workItem.id}
+              projectId={projectId}
+              currentCompleted={
+                task.workItem.fields['Microsoft.VSTS.Scheduling.CompletedWork'] ?? 0
+              }
+              queryKey={queryKey}
+            />
+          </SidebarField>
+        </aside>
+      </div>
     </DraggableModal>
   );
 }
@@ -396,13 +518,96 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-function FieldCell({ label, children }: { label: string; children: React.ReactNode }) {
+function SidebarField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
         {label}
       </div>
       {children}
+    </div>
+  );
+}
+
+/* ── Tags editor ──────────────────────────────────────────────────────────── */
+
+function TagsEditor({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState('');
+
+  function commit(raw: string) {
+    const pieces = raw
+      .split(/[;,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (pieces.length === 0) return;
+    const existing = new Set(tags.map((t) => t.toLowerCase()));
+    const additions = pieces.filter((p) => !existing.has(p.toLowerCase()));
+    if (additions.length === 0) return;
+    onChange([...tags, ...additions]);
+  }
+
+  function handleKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ';' || e.key === 'Tab') {
+      if (!draft.trim()) return;
+      e.preventDefault();
+      commit(draft);
+      setDraft('');
+    } else if (e.key === 'Backspace' && !draft && tags.length > 0) {
+      onChange(tags.slice(0, -1));
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-1 min-h-[32px] rounded-md px-1.5 py-1',
+        'bg-white/[0.03] border border-white/[0.08]',
+        'focus-within:border-indigo-400/40 focus-within:ring-2 focus-within:ring-indigo-400/15',
+        'transition-colors duration-150',
+      )}
+    >
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="inline-flex items-center gap-0.5 rounded bg-white/[0.06] pl-2 pr-0.5 py-0.5 text-[11px] text-zinc-200 lit-top"
+        >
+          {tag}
+          <button
+            type="button"
+            // Prevent the input's onBlur from firing first and swallowing the click
+            // (which it would, since blur re-renders and the button could unmount).
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(tags.filter((t) => t !== tag));
+            }}
+            aria-label={`Remove tag ${tag}`}
+            className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={handleKey}
+        onBlur={() => {
+          if (draft.trim()) {
+            commit(draft);
+            setDraft('');
+          }
+        }}
+        placeholder={tags.length === 0 ? 'Add tag…' : ''}
+        className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-100 placeholder:text-zinc-600 outline-none px-1 py-0.5"
+      />
     </div>
   );
 }
@@ -436,11 +641,7 @@ function AssigneePicker({
 
   const { results, searching } = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) {
-      // Default: just the people actually on this board. Much more accurate than the
-      // raw team-members endpoint, which can include retired or unrelated accounts.
-      return { results: boardAssignees, searching: false };
-    }
+    if (!q) return { results: boardAssignees, searching: false };
     const pool = new Map<string, AdoIdentity>();
     for (const a of boardAssignees) pool.set(identityKey(a), a);
     for (const m of members ?? []) pool.set(identityKey(m.identity), m.identity);
@@ -583,8 +784,6 @@ function TimeTracking({
       );
     },
     onSuccess: (wi) => {
-      // Optimistically update the cached board entry so the displayed total moves
-      // without waiting for the next 30s refetch.
       queryClient.setQueryData<TaskboardData>(queryKey as never, (prev) => {
         if (!prev) return prev;
         const patch = (t: TaskOnBoard): TaskOnBoard =>
@@ -611,6 +810,10 @@ function TimeTracking({
         };
       });
       queryClient.invalidateQueries({ queryKey: queryKey as never });
+      // Invalidate the updates feed too so the Work Log tab reflects the new entry.
+      queryClient.invalidateQueries({
+        queryKey: ['workitem-updates', projectId, workItemId],
+      });
       setInput('');
       setErr(null);
     },
@@ -623,7 +826,7 @@ function TimeTracking({
     e.preventDefault();
     const n = Number(input);
     if (!Number.isFinite(n) || n === 0) {
-      setErr('Enter a positive or negative number of hours');
+      setErr('Enter hours (positive or negative)');
       return;
     }
     setErr(null);
@@ -631,20 +834,14 @@ function TimeTracking({
   }
 
   return (
-    <div
-      className={cn(
-        'rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
-        'flex items-center gap-4 flex-wrap',
-      )}
-    >
-      <div className="flex items-center gap-2 text-[13px] text-zinc-200">
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 text-[13px] text-zinc-200">
         <Clock className="h-3.5 w-3.5 text-zinc-500" />
         <span className="mono">{formatHours(currentCompleted)}</span>
-        <span className="text-zinc-600">logged</span>
+        <span className="text-zinc-600 text-[11px]">logged</span>
       </div>
-      <div className="h-5 w-px bg-white/[0.06]" />
       <div className="flex items-center gap-1.5">
-        <div className="relative">
+        <div className="relative flex-1">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 text-[13px] mono">
             +
           </span>
@@ -656,7 +853,7 @@ function TimeTracking({
               if (e.key === 'Enter') handleAdd(e as unknown as FormEvent);
             }}
             placeholder="0"
-            className="h-7 w-20 pl-5 pr-2 text-[13px] mono"
+            className="h-7 pl-5 pr-2 text-[13px] mono"
           />
         </div>
         <span className="text-[12px] text-zinc-600">h</span>
@@ -671,174 +868,7 @@ function TimeTracking({
           Log
         </Button>
       </div>
-      {err && (
-        <span className="basis-full text-[11px] text-red-300/80 mono">{err}</span>
-      )}
+      {err && <div className="text-[11px] text-red-300/80 mono">{err}</div>}
     </div>
   );
-}
-
-function formatHours(h: number): string {
-  if (!h) return '0h';
-  if (Number.isInteger(h)) return `${h}h`;
-  return `${h.toFixed(1)}h`;
-}
-
-/* ── History ──────────────────────────────────────────────────────────────── */
-
-const HISTORY_IGNORED_FIELDS = new Set([
-  'System.Rev',
-  'System.ChangedBy',
-  'System.ChangedDate',
-  'System.AuthorizedAs',
-  'System.AuthorizedDate',
-  'System.RevisedDate',
-  'System.Watermark',
-  'System.PersonId',
-  'System.BoardColumnDone',
-  'System.BoardColumn',
-  'System.BoardLane',
-  'Microsoft.VSTS.Common.StateChangeDate',
-  'Microsoft.VSTS.Common.ActivatedDate',
-  'Microsoft.VSTS.Common.ActivatedBy',
-  'Microsoft.VSTS.Common.ResolvedDate',
-  'Microsoft.VSTS.Common.ResolvedBy',
-  'Microsoft.VSTS.Common.ClosedDate',
-  'Microsoft.VSTS.Common.ClosedBy',
-  'Microsoft.VSTS.Common.StackRank',
-]);
-
-function HistoryPanel({
-  workItemId,
-  projectId,
-  open,
-}: {
-  workItemId: number;
-  projectId: string | null;
-  open: boolean;
-}) {
-  const q = useQuery({
-    queryKey: ['workitem-updates', projectId, workItemId],
-    queryFn: () => listWorkItemUpdates(projectId!, workItemId),
-    enabled: open && !!projectId,
-    staleTime: 60_000,
-    retry: false,
-  });
-
-  if (q.isLoading) {
-    return (
-      <div className="text-[12px] text-zinc-500 flex items-center gap-1.5 py-2">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading history…
-      </div>
-    );
-  }
-  if (q.isError) {
-    return <div className="text-[12px] text-red-300/80 py-2">Couldn't load history.</div>;
-  }
-
-  const events = (q.data ?? [])
-    .flatMap((upd) => describeUpdate(upd))
-    .reverse()
-    .slice(0, 40);
-
-  if (events.length === 0) {
-    return <div className="text-[12px] text-zinc-600 py-2">No activity yet.</div>;
-  }
-
-  return (
-    <div className="rounded-md border border-white/[0.06] bg-white/[0.015] divide-y divide-white/[0.04] max-h-56 overflow-auto">
-      {events.map((ev, i) => (
-        <div key={i} className="flex items-start gap-2 px-3 py-2 text-[12px]">
-          <div className="pt-0.5">
-            <Avatar identity={ev.by} size="sm" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-zinc-300">
-              <span className="font-medium">{ev.by?.displayName ?? 'Someone'}</span>{' '}
-              <span className="text-zinc-500">{ev.summary}</span>
-            </div>
-          </div>
-          <div className="text-[11px] text-zinc-600 mono shrink-0">
-            {relativeTime(ev.at)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-interface HistoryEvent {
-  by: AdoIdentity | undefined;
-  at: string;
-  summary: string;
-}
-
-function describeUpdate(upd: AdoWorkItemUpdate): HistoryEvent[] {
-  if (!upd.fields) return [];
-  const out: HistoryEvent[] = [];
-  for (const [field, change] of Object.entries(upd.fields)) {
-    if (HISTORY_IGNORED_FIELDS.has(field)) continue;
-    const summary = describeFieldChange(field, change.oldValue, change.newValue);
-    if (!summary) continue;
-    out.push({ by: upd.revisedBy, at: upd.revisedDate, summary });
-  }
-  return out;
-}
-
-function describeFieldChange(field: string, oldVal: unknown, newVal: unknown): string | null {
-  const oldStr = formatFieldValue(oldVal);
-  const newStr = formatFieldValue(newVal);
-  if (oldStr === newStr) return null;
-
-  switch (field) {
-    case 'System.State':
-      return `changed status ${oldStr || '—'} → ${newStr || '—'}`;
-    case 'System.Title':
-      return `renamed to “${newStr}”`;
-    case 'System.AssignedTo':
-      if (!newStr) return 'unassigned';
-      return oldStr ? `reassigned to ${newStr}` : `assigned to ${newStr}`;
-    case 'System.Description':
-      return 'updated the description';
-    case 'System.Tags':
-      return `updated tags (${newStr || '—'})`;
-    case 'Microsoft.VSTS.Scheduling.StoryPoints':
-      return `set points to ${newStr || '—'}`;
-    case 'Microsoft.VSTS.Scheduling.RemainingWork':
-      return `remaining: ${newStr || '0'}h`;
-    case 'Microsoft.VSTS.Scheduling.CompletedWork':
-      return `logged work: ${oldStr || '0'}h → ${newStr || '0'}h`;
-    case 'Microsoft.VSTS.Scheduling.OriginalEstimate':
-      return `set estimate to ${newStr || '0'}h`;
-    default: {
-      const label = field.replace(/^(System|Microsoft\.VSTS\.[^.]+)\./, '');
-      return `updated ${label}`;
-    }
-  }
-}
-
-function formatFieldValue(v: unknown): string {
-  if (v == null) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  if (typeof v === 'object' && 'displayName' in (v as AdoIdentity)) {
-    return (v as AdoIdentity).displayName;
-  }
-  return '';
-}
-
-function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  const sec = Math.max(0, Math.round((now - then) / 1000));
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.round(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.round(hr / 24);
-  if (day < 30) return `${day}d ago`;
-  const mon = Math.round(day / 30);
-  if (mon < 12) return `${mon}mo ago`;
-  return `${Math.round(mon / 12)}y ago`;
 }

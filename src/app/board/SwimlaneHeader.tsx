@@ -9,16 +9,23 @@ import { Avatar } from './Avatar';
 function BannerShell({
   collapsed,
   onToggle,
+  onOpen,
   children,
 }: {
   collapsed: boolean;
   onToggle: () => void;
+  /** Optional: primary click action. When provided, clicking the banner opens
+   *  the work item (chevron still toggles collapse). When absent, the whole
+   *  banner toggles collapse — used by the unparented banner which has no
+   *  work item to open. */
+  onOpen?: () => void;
   children: ReactNode;
 }) {
+  const primary = onOpen ?? onToggle;
   function handleKey(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onToggle();
+      primary();
     }
   }
 
@@ -26,7 +33,7 @@ function BannerShell({
     <div
       role="button"
       tabIndex={0}
-      onClick={onToggle}
+      onClick={primary}
       onKeyDown={handleKey}
       aria-expanded={!collapsed}
       className={cn(
@@ -35,12 +42,22 @@ function BannerShell({
         'focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40',
       )}
     >
-      <ChevronDown
-        className={cn(
-          'h-3.5 w-3.5 text-zinc-500 shrink-0 transition-transform duration-150',
-          collapsed && '-rotate-90',
-        )}
-      />
+      <button
+        type="button"
+        aria-label={collapsed ? 'Expand' : 'Collapse'}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className="inline-flex items-center justify-center rounded p-0.5 text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
+      >
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 transition-transform duration-150',
+            collapsed && '-rotate-90',
+          )}
+        />
+      </button>
       {children}
     </div>
   );
@@ -52,12 +69,14 @@ export function SwimlaneBanner({
   points,
   collapsed,
   onToggle,
+  onOpen,
 }: {
   row: AdoWorkItem;
   totalTasks: number;
   points?: number;
   collapsed: boolean;
   onToggle: () => void;
+  onOpen?: () => void;
 }) {
   const f = row.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
@@ -65,7 +84,7 @@ export function SwimlaneBanner({
   const assignee = f['System.AssignedTo'];
 
   return (
-    <BannerShell collapsed={collapsed} onToggle={onToggle}>
+    <BannerShell collapsed={collapsed} onToggle={onToggle} onOpen={onOpen}>
       <span
         className="h-1.5 w-1.5 rounded-full shrink-0"
         style={{ backgroundColor: type.dot }}
@@ -74,9 +93,6 @@ export function SwimlaneBanner({
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
       <span className="text-zinc-100 font-medium truncate">{f['System.Title']}</span>
-      <span className="shrink-0">
-        <CopyLinkButton workItemId={row.id} />
-      </span>
       <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
       </span>
@@ -96,10 +112,13 @@ export function SwimlaneBanner({
         <span className="mono text-[11px] text-zinc-500 shrink-0">· {points} pts</span>
       )}
       {assignee?.displayName && (
-        <span className="ml-1 shrink-0">
+        <span className="ml-1 shrink-0 flex">
           <Avatar identity={assignee} size="xs" />
         </span>
       )}
+      <span className="ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
+        <CopyLinkButton workItemId={row.id} />
+      </span>
     </BannerShell>
   );
 }

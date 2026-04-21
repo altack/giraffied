@@ -67,9 +67,27 @@ export function BoardGrid({
   const displayData = overlay ?? data;
   const { columns, swimlanes, unparented } = displayData;
 
-  const selectedTask = useMemo(() => {
+  const selectedTask = useMemo<TaskOnBoard | null>(() => {
     if (selectedId == null) return null;
     for (const lane of swimlanes) {
+      if (lane.row.id === selectedId) {
+        // Swimlane rows (Story/Feature/PBI) are work items that *host* child
+        // cards but don't live on the taskboard themselves. We synthesize a
+        // TaskOnBoard with an empty taskboard slot so the modal can edit them.
+        // The state dropdown will only offer the row's current state unless
+        // the columns map its work-item type, which is OK for v1.
+        return {
+          workItem: lane.row,
+          taskboard: {
+            id: lane.row.id,
+            workItemType: lane.row.fields['System.WorkItemType'],
+            state: lane.row.fields['System.State'] ?? '',
+            column: '',
+            columnId: '',
+            order: 0,
+          },
+        };
+      }
       const t = lane.tasks.find((x) => x.workItem.id === selectedId);
       if (t) return t;
     }
@@ -133,6 +151,7 @@ export function BoardGrid({
         points={lane.row.fields['Microsoft.VSTS.Scheduling.StoryPoints']}
         collapsed={collapsed}
         onToggle={onToggle}
+        onOpen={() => setSelectedId(lane.row.id)}
       />
     ),
     tasks: lane.tasks,
@@ -301,6 +320,7 @@ export function BoardGrid({
       </div>
       {selectedTask && (
         <WorkItemModal
+          key={selectedTask.workItem.id}
           task={selectedTask}
           columns={columns}
           open

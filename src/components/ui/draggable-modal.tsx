@@ -22,9 +22,12 @@ interface DraggableModalProps {
   /** Optional: right-side slot in the header for secondary actions (before close). */
   headerActions?: ReactNode;
   footer?: ReactNode;
-  /** Target width in px. Height grows with content up to `maxHeightVh`. */
+  /** Target width in px. */
   width?: number;
-  maxHeightVh?: number;
+  /** Height in vh. When `fixedHeight` is true the panel is locked to exactly this
+   *  height so switching tabs / growing content doesn't make the dialog jump. */
+  heightVh?: number;
+  fixedHeight?: boolean;
   children: ReactNode;
 }
 
@@ -37,7 +40,8 @@ export function DraggableModal({
   headerActions,
   footer,
   width = 520,
-  maxHeightVh = 84,
+  heightVh = 84,
+  fixedHeight = false,
   children,
 }: DraggableModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -114,7 +118,9 @@ export function DraggableModal({
 
   const style: React.CSSProperties = {
     width,
-    maxHeight: `${maxHeightVh}vh`,
+    ...(fixedHeight
+      ? { height: `${heightVh}vh` }
+      : { maxHeight: `${heightVh}vh` }),
     ...(pos ? { left: pos.x, top: pos.y } : { visibility: 'hidden' }),
   };
 
@@ -153,7 +159,7 @@ export function DraggableModal({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="flex-1 overflow-auto">{children}</div>
+      <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
       {footer && (
         <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-end gap-2">
           {footer}
