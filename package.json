@@ -1,0 +1,30 @@
+{
+  "name": "jirafied",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Linear-style Chrome extension for the Azure DevOps sprint taskboard.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@tailwindcss/vite": "^4.2.3",
+    "@types/chrome": "^0.1.40",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.9"
+  }
+}
