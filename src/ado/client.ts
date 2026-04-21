@@ -22,7 +22,7 @@ export class AdoError extends Error {
   }
 }
 
-export async function ado<T>(opts: AdoRequestOptions): Promise<T> {
+export async function adoRaw(opts: AdoRequestOptions): Promise<Response> {
   const settings = useSettings.getState();
   const org = opts.override?.org ?? settings.org;
   const pat = opts.override?.pat ?? settings.pat;
@@ -56,7 +56,35 @@ export async function ado<T>(opts: AdoRequestOptions): Promise<T> {
     const body = await res.text();
     throw new AdoError(res.status, res.statusText, body);
   }
+  return res;
+}
 
+export async function ado<T>(opts: AdoRequestOptions): Promise<T> {
+  const res = await adoRaw(opts);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/**
+ * Fetches a paginated Azure DevOps collection endpoint to exhaustion,
+ * following the `x-ms-continuationtoken` response header. Returns the
+ * flattened `value` array across all pages.
+ */
+export async function adoPaged<T>(opts: AdoRequestOptions): Promise<T[]> {
+  const all: T[] = [];
+  let token: string | undefined;
+  // Safety cap to avoid runaway loops if ADO misbehaves.
+  const MAX_PAGES = 50;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const sep = opts.path.includes('?') ? '&' : '?';
+    const path = token
+      ? `${opts.path}${sep}continuationToken=${encodeURIComponent(token)}`
+      : opts.path;
+    const res = await adoRaw({ ...opts, path });
+    const body = (await res.json()) as { value: T[] };
+    all.push(...body.value);
+    token = res.headers.get('x-ms-continuationtoken') ?? undefined;
+    if (!token) return all;
+  }
+  return all;
 }

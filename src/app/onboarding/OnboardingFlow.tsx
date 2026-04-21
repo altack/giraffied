@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { Loader2, ExternalLink } from 'lucide-react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { Loader2, ExternalLink, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,8 +17,16 @@ export function OnboardingFlow() {
   const [projects, setProjects] = useState<AdoProject[]>([]);
   const [teams, setTeams] = useState<AdoTeam[]>([]);
   const [selectedProject, setSelectedProject] = useState<AdoProject | null>(null);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [teamFilter, setTeamFilter] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredProjects = useMemo(
+    () => filterByName(projects, projectFilter),
+    [projects, projectFilter],
+  );
+  const filteredTeams = useMemo(() => filterByName(teams, teamFilter), [teams, teamFilter]);
 
   async function handleCredentials(e: FormEvent) {
     e.preventDefault();
@@ -29,19 +37,22 @@ export function OnboardingFlow() {
       if (!cleanOrg) throw new Error('Organization cannot be empty');
       if (!pat.trim()) throw new Error('PAT cannot be empty');
 
-      const res = await listProjects({ org: cleanOrg, pat: pat.trim() });
-      if (res.value.length === 0) {
+      const list = await listProjects({ org: cleanOrg, pat: pat.trim() });
+      if (list.length === 0) {
         setError('Connected, but no projects visible. Does your PAT have the Work scope?');
         return;
       }
       useSettings.getState().setCredentials(cleanOrg, pat.trim());
       setOrg(cleanOrg);
-      setProjects(res.value);
+      setProjects(list);
+      setProjectFilter('');
       setStep('project');
     } catch (err) {
       if (err instanceof AdoError) {
         if (err.status === 401 || err.status === 203) {
-          setError('Authentication failed. Double-check your PAT and that it has the Work (Read & write) scope.');
+          setError(
+            'Authentication failed. Double-check your PAT and that it has the Work (Read & write) scope.',
+          );
         } else if (err.status === 404) {
           setError(`Organization not found at https://dev.azure.com/${org.trim()}`);
         } else {
@@ -60,9 +71,10 @@ export function OnboardingFlow() {
     setBusy(true);
     setSelectedProject(project);
     try {
-      const res = await listTeams(project.id);
+      const list = await listTeams(project.id);
       useSettings.getState().setProject(project.id, project.name);
-      setTeams(res.value);
+      setTeams(list);
+      setTeamFilter('');
       setStep('team');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load teams');
@@ -81,7 +93,8 @@ export function OnboardingFlow() {
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">Connect to Azure DevOps</h1>
           <p className="text-sm text-zinc-400">
-            Jirafied talks directly to the Azure DevOps REST API from your browser. Nothing goes through a server.
+            Jirafied talks directly to the Azure DevOps REST API from your browser. Nothing goes
+            through a server.
           </p>
         </header>
 
@@ -147,33 +160,38 @@ export function OnboardingFlow() {
             <div className="text-sm text-zinc-400">
               Connected to <code className="text-zinc-200">{org}</code>. Choose a project.
             </div>
+            <SearchInput
+              value={projectFilter}
+              onChange={setProjectFilter}
+              placeholder="Search projects…"
+              total={projects.length}
+              shown={filteredProjects.length}
+              autoFocus
+            />
             {error && (
               <div className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-200">
                 {error}
               </div>
             )}
-            <ul className="max-h-96 overflow-y-auto rounded-md border border-zinc-800 divide-y divide-zinc-800">
-              {projects.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleProject(p)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-900 disabled:opacity-50"
-                  >
-                    <div>
-                      <div className="font-medium">{p.name}</div>
-                      {p.description && (
-                        <div className="text-xs text-zinc-500 line-clamp-1">{p.description}</div>
-                      )}
-                    </div>
-                    {busy && selectedProject?.id === p.id && (
-                      <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+            <PickerList
+              items={filteredProjects}
+              emptyLabel={projectFilter ? 'No matches.' : 'No projects visible.'}
+              renderItem={(p) => (
+                <>
+                  <div>
+                    <div className="font-medium">{p.name}</div>
+                    {p.description && (
+                      <div className="text-xs text-zinc-500 line-clamp-1">{p.description}</div>
                     )}
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  </div>
+                  {busy && selectedProject?.id === p.id && (
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                  )}
+                </>
+              )}
+              onSelect={handleProject}
+              disabled={busy}
+            />
             <Button variant="ghost" size="sm" onClick={() => setStep('credentials')}>
               ← Change organization
             </Button>
@@ -183,26 +201,31 @@ export function OnboardingFlow() {
         {step === 'team' && selectedProject && (
           <div className="space-y-4">
             <div className="text-sm text-zinc-400">
-              Project <code className="text-zinc-200">{selectedProject.name}</code>. Choose a team — this picks the default sprint board.
+              Project <code className="text-zinc-200">{selectedProject.name}</code>. Choose a team —
+              this picks the default sprint board.
             </div>
-            <ul className="max-h-96 overflow-y-auto rounded-md border border-zinc-800 divide-y divide-zinc-800">
-              {teams.map((t) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleTeam(t)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-900"
-                  >
-                    <div>
-                      <div className="font-medium">{t.name}</div>
-                      {t.description && (
-                        <div className="text-xs text-zinc-500 line-clamp-1">{t.description}</div>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <SearchInput
+              value={teamFilter}
+              onChange={setTeamFilter}
+              placeholder="Search teams…"
+              total={teams.length}
+              shown={filteredTeams.length}
+              autoFocus
+            />
+            <PickerList
+              items={filteredTeams}
+              emptyLabel={teamFilter ? 'No matches.' : 'No teams in this project.'}
+              renderItem={(t) => (
+                <div>
+                  <div className="font-medium">{t.name}</div>
+                  {t.description && (
+                    <div className="text-xs text-zinc-500 line-clamp-1">{t.description}</div>
+                  )}
+                </div>
+              )}
+              onSelect={handleTeam}
+              disabled={false}
+            />
             <Button variant="ghost" size="sm" onClick={() => setStep('project')}>
               ← Change project
             </Button>
@@ -210,5 +233,90 @@ export function OnboardingFlow() {
         )}
       </div>
     </div>
+  );
+}
+
+function filterByName<T extends { name: string; description?: string }>(
+  items: T[],
+  query: string,
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter(
+    (x) =>
+      x.name.toLowerCase().includes(q) ||
+      (x.description?.toLowerCase().includes(q) ?? false),
+  );
+}
+
+function SearchInput({
+  value,
+  onChange,
+  placeholder,
+  total,
+  shown,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  total: number;
+  shown: number;
+  autoFocus?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="pl-9"
+          autoFocus={autoFocus}
+        />
+      </div>
+      <div className="text-xs text-zinc-500 px-1">
+        {value ? `${shown} of ${total}` : `${total} total`}
+      </div>
+    </div>
+  );
+}
+
+function PickerList<T extends { id: string }>({
+  items,
+  onSelect,
+  renderItem,
+  emptyLabel,
+  disabled,
+}: {
+  items: T[];
+  onSelect: (item: T) => void;
+  renderItem: (item: T) => React.ReactNode;
+  emptyLabel: string;
+  disabled: boolean;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-md border border-zinc-800 px-4 py-6 text-center text-sm text-zinc-500">
+        {emptyLabel}
+      </div>
+    );
+  }
+  return (
+    <ul className="max-h-96 overflow-y-auto rounded-md border border-zinc-800 divide-y divide-zinc-800">
+      {items.map((item) => (
+        <li key={item.id}>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(item)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-900 disabled:opacity-50"
+          >
+            {renderItem(item)}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
