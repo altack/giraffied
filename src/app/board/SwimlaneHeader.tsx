@@ -1,7 +1,9 @@
+import { type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
 import { avatarColor, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
+import { CopyLinkButton } from './CopyLinkButton';
 
 function BannerShell({
   collapsed,
@@ -10,17 +12,27 @@ function BannerShell({
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
+  function handleKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onToggle();
+    }
+  }
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onToggle}
-      className={cn(
-        'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left',
-        'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
-      )}
+      onKeyDown={handleKey}
       aria-expanded={!collapsed}
+      className={cn(
+        'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left cursor-pointer',
+        'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
+        'focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40',
+      )}
     >
       <ChevronDown
         className={cn(
@@ -29,7 +41,7 @@ function BannerShell({
         )}
       />
       {children}
-    </button>
+    </div>
   );
 }
 
@@ -61,6 +73,9 @@ export function SwimlaneBanner({
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
       <span className="text-zinc-100 font-medium truncate">{f['System.Title']}</span>
+      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
+        <CopyLinkButton workItemId={row.id} />
+      </span>
       <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
       </span>

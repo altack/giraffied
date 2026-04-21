@@ -1,6 +1,7 @@
 import type { TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { cn } from '@/lib/cn';
 import { avatarColor, initialsOf, parseTags, workItemTypeStyle } from './workItemVisuals';
+import { CopyLinkButton } from './CopyLinkButton';
 
 export function TaskCard({ task }: { task: TaskOnBoard }) {
   const f = task.workItem.fields;
@@ -19,7 +20,10 @@ export function TaskCard({ task }: { task: TaskOnBoard }) {
         'lit-top',
       )}
     >
-      <div className="text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3">
+      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+        <CopyLinkButton workItemId={task.workItem.id} />
+      </div>
+      <div className="text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 pr-5">
         {f['System.Title']}
       </div>
       {tags.length > 0 && (
