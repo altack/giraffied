@@ -74,7 +74,7 @@ export function SwimlaneBanner({
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
       <span className="text-zinc-100 font-medium truncate">{f['System.Title']}</span>
-      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
+      <span className="shrink-0">
         <CopyLinkButton workItemId={row.id} />
       </span>
       <span className="text-[11px] text-zinc-600 shrink-0">

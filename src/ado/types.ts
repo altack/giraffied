@@ -28,6 +28,11 @@ export interface AdoIdentity {
   descriptor?: string;
 }
 
+export interface AdoTeamMember {
+  identity: AdoIdentity;
+  isTeamAdmin?: boolean;
+}
+
 export interface AdoIteration {
   id: string;
   name: string;
@@ -103,12 +108,15 @@ export interface AdoWorkItemFields {
   'System.Title': string;
   'System.State': string;
   'System.WorkItemType': string;
+  'System.Rev'?: number;
+  'System.Description'?: string;
   'System.AssignedTo'?: AdoIdentity;
   'System.Tags'?: string;
   'System.IterationPath'?: string;
   'System.AreaPath'?: string;
   'Microsoft.VSTS.Scheduling.StoryPoints'?: number;
   'Microsoft.VSTS.Scheduling.RemainingWork'?: number;
+  'Microsoft.VSTS.Scheduling.CompletedWork'?: number;
   'Microsoft.VSTS.Common.StackRank'?: number;
   [key: string]: unknown;
 }
@@ -145,11 +153,29 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'System.Title',
   'System.State',
   'System.WorkItemType',
+  'System.Rev',
+  'System.Description',
   'System.AssignedTo',
   'System.Tags',
   'System.IterationPath',
   'System.AreaPath',
   'Microsoft.VSTS.Scheduling.StoryPoints',
   'Microsoft.VSTS.Scheduling.RemainingWork',
+  'Microsoft.VSTS.Scheduling.CompletedWork',
   'Microsoft.VSTS.Common.StackRank',
 ] as const;
+
+/** Shape of an item returned from `GET /wit/workitems/{id}/updates`. Each entry is a
+ *  revision event — the diff of fields between revs and the person who made it. */
+export interface AdoWorkItemUpdate {
+  id: number;
+  workItemId: number;
+  rev: number;
+  revisedBy: AdoIdentity;
+  revisedDate: string;
+  /** Per-field before/after (`oldValue`/`newValue`). Values can be primitives or identities. */
+  fields?: Record<string, { oldValue?: unknown; newValue?: unknown }>;
+  /** Relations added/removed. We don't render these in history v1. */
+  relations?: unknown;
+  url: string;
+}

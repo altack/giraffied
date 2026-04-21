@@ -13,14 +13,15 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: [
-          'text-white',
-          'bg-gradient-to-b from-indigo-500 to-violet-600',
-          'shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18),0_1px_0_0_rgb(0_0_0/0.3)]',
-          'hover:from-indigo-400 hover:to-violet-500',
+          'text-zinc-50',
+          'bg-white/[0.09] backdrop-blur-xl',
+          'border border-white/[0.14]',
+          'shadow-[inset_0_1px_0_0_rgb(255_255_255/0.14),0_1px_0_0_rgb(0_0_0/0.35)]',
+          'hover:bg-white/[0.13] hover:border-white/[0.18]',
         ].join(' '),
         secondary: [
-          'text-zinc-100 bg-white/[0.05] border border-white/[0.08]',
-          'hover:bg-white/[0.08] hover:border-white/[0.12]',
+          'text-zinc-200 bg-white/[0.04] border border-white/[0.08]',
+          'hover:bg-white/[0.07] hover:border-white/[0.12]',
           'lit-top',
         ].join(' '),
         ghost:

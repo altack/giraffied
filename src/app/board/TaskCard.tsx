@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dnd';
 import type { TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { cn } from '@/lib/cn';
@@ -10,10 +10,12 @@ export function TaskCard({
   task,
   dragProvided,
   dragSnapshot,
+  onOpen,
 }: {
   task: TaskOnBoard;
   dragProvided?: DraggableProvided;
   dragSnapshot?: DraggableStateSnapshot;
+  onOpen?: (task: TaskOnBoard) => void;
 }) {
   const f = task.workItem.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
@@ -22,6 +24,16 @@ export function TaskCard({
   const tags = parseTags(f['System.Tags']);
 
   const isDragging = dragSnapshot?.isDragging ?? false;
+
+  // hello-pangea/dnd lets the click through when the pointer didn't move past its drag
+  // threshold. We open the modal on click; CopyLinkButton stops propagation, so it
+  // doesn't double-trigger.
+  const handleClick = (e: MouseEvent<HTMLElement>) => {
+    if (!onOpen) return;
+    if (dragSnapshot?.isDragging) return;
+    if ((e.target as HTMLElement).closest('[data-no-open]')) return;
+    onOpen(task);
+  };
 
   // Zero the drop animation. Even with the flushSync overlay trick we still see a
   // brief flicker because the library's FLIP transition runs before React's external-
@@ -40,6 +52,7 @@ export function TaskCard({
       {...(dragProvided?.draggableProps ?? {})}
       {...(dragProvided?.dragHandleProps ?? {})}
       style={style}
+      onClick={handleClick}
       className={cn(
         'group relative rounded-md px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing',
         'bg-[#141418] border border-white/[0.06]',
@@ -49,7 +62,10 @@ export function TaskCard({
         isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-[#17171c]',
       )}
     >
-      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+      <div
+        data-no-open
+        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
+      >
         <CopyLinkButton workItemId={task.workItem.id} />
       </div>
       <div className="text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 pr-5">

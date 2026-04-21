@@ -1,10 +1,10 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { Check } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
-import type { AdoTaskboardColumn } from '@/ado/types';
+import type { AdoIdentity, AdoTaskboardColumn } from '@/ado/types';
 import {
   patchWorkItemField,
   reorderIterationWorkItems,
@@ -14,6 +14,7 @@ import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store'
 import { cn } from '@/lib/cn';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
+import { WorkItemModal } from './WorkItemModal';
 
 const UNPARENTED_LANE_KEY = 'unparented';
 
@@ -62,8 +63,43 @@ export function BoardGrid({
   // (see the long comment in handleDragEnd). Once the mutation settles we clear
   // the overlay and the query cache takes over again.
   const [overlay, setOverlay] = useState<TaskboardData | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const displayData = overlay ?? data;
   const { columns, swimlanes, unparented } = displayData;
+
+  const selectedTask = useMemo(() => {
+    if (selectedId == null) return null;
+    for (const lane of swimlanes) {
+      const t = lane.tasks.find((x) => x.workItem.id === selectedId);
+      if (t) return t;
+    }
+    return unparented.find((x) => x.workItem.id === selectedId) ?? null;
+  }, [selectedId, swimlanes, unparented]);
+
+  // If the selected task disappears (refetch removed it from the sprint), close.
+  useEffect(() => {
+    if (selectedId != null && !selectedTask) setSelectedId(null);
+  }, [selectedId, selectedTask]);
+
+  // Unique assignees currently on the board (across child cards AND swimlane rows).
+  // Used as the default list in the assignee picker — much more accurate than
+  // /teams/{id}/members, which can include retired or unrelated members.
+  const boardAssignees = useMemo<AdoIdentity[]>(() => {
+    const seen = new Map<string, AdoIdentity>();
+    const collect = (a: AdoIdentity | undefined) => {
+      if (!a?.displayName) return;
+      const key = a.uniqueName ?? a.id ?? a.displayName;
+      if (!seen.has(key)) seen.set(key, a);
+    };
+    for (const lane of swimlanes) {
+      collect(lane.row.fields['System.AssignedTo']);
+      for (const t of lane.tasks) collect(t.workItem.fields['System.AssignedTo']);
+    }
+    for (const t of unparented) collect(t.workItem.fields['System.AssignedTo']);
+    return [...seen.values()].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }),
+    );
+  }, [swimlanes, unparented]);
 
   const org = useSettings((s) => s.org);
   const projectId = useSettings((s) => s.projectId);
@@ -253,6 +289,7 @@ export function BoardGrid({
                         droppableId={droppableIdFor(row.laneKey, col.id)}
                         type={`lane-${row.laneKey}`}
                         tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
+                        onOpen={(t) => setSelectedId(t.workItem.id)}
                       />
                     ))}
                   </div>
@@ -262,6 +299,16 @@ export function BoardGrid({
           })}
         </div>
       </div>
+      {selectedTask && (
+        <WorkItemModal
+          task={selectedTask}
+          columns={columns}
+          open
+          onClose={() => setSelectedId(null)}
+          iterationId={iterationId}
+          boardAssignees={boardAssignees}
+        />
+      )}
     </DragDropContext>
   );
 }
@@ -283,10 +330,12 @@ function ColumnCell({
   droppableId,
   type,
   tasks,
+  onOpen,
 }: {
   droppableId: string;
   type: string;
   tasks: TaskOnBoard[];
+  onOpen: (task: TaskOnBoard) => void;
 }) {
   return (
     <Droppable droppableId={droppableId} type={type}>
@@ -312,6 +361,7 @@ function ColumnCell({
                   task={t}
                   dragProvided={dragProvided}
                   dragSnapshot={dragSnapshot}
+                  onOpen={onOpen}
                 />
               )}
             </Draggable>

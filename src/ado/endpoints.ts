@@ -9,8 +9,10 @@ import type {
   AdoTaskboardColumns,
   AdoTaskboardWorkItems,
   AdoTeam,
+  AdoTeamMember,
   AdoWorkItem,
   AdoWorkItemType,
+  AdoWorkItemUpdate,
 } from './types';
 import { DEFAULT_WORKITEM_FIELDS } from './types';
 
@@ -36,6 +38,21 @@ export async function listTeams(
     override,
   });
   return teams.sort(byName);
+}
+
+/** GET the members of a team. Response entries are wrapped as `{ identity, isTeamAdmin }`. */
+export async function listTeamMembers(
+  projectId: string,
+  teamId: string,
+): Promise<AdoTeamMember[]> {
+  const members = await adoPaged<AdoTeamMember>({
+    path: `/_apis/projects/${encodeURIComponent(projectId)}/teams/${encodeURIComponent(teamId)}/members?$top=500`,
+  });
+  return members.sort((a, b) =>
+    a.identity.displayName.localeCompare(b.identity.displayName, undefined, {
+      sensitivity: 'base',
+    }),
+  );
 }
 
 /** GET current iteration for a team. Returns null if the team has no current iteration. */
@@ -109,20 +126,52 @@ export function reorderIterationWorkItems(
   });
 }
 
+export type AdoFieldValue = string | number | null;
+
+export interface AdoFieldPatch {
+  field: string;
+  value: AdoFieldValue;
+}
+
 /** PATCH a single field on a work item using JSON Patch. Used for column changes
  *  (System.State) when a card is dragged between columns. */
 export function patchWorkItemField(
   projectId: string,
   id: number,
   field: string,
-  value: string | number | null,
+  value: AdoFieldValue,
+): Promise<AdoWorkItem> {
+  return patchWorkItemFields(projectId, id, [{ field, value }]);
+}
+
+/** PATCH multiple fields on a work item in a single request. ADO honors `null` as "clear
+ *  the field" when the op is `add`. */
+export function patchWorkItemFields(
+  projectId: string,
+  id: number,
+  patches: AdoFieldPatch[],
 ): Promise<AdoWorkItem> {
   return ado<AdoWorkItem>({
     path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}`,
     method: 'PATCH',
     contentType: 'application/json-patch+json',
-    body: [{ op: 'add', path: `/fields/${field}`, value }],
+    body: patches.map((p) => ({
+      op: 'add',
+      path: `/fields/${p.field}`,
+      value: p.value,
+    })),
   });
+}
+
+/** GET the revision history of a work item. Most-recent rev last. */
+export async function listWorkItemUpdates(
+  projectId: string,
+  id: number,
+): Promise<AdoWorkItemUpdate[]> {
+  const res = await ado<AdoList<AdoWorkItemUpdate>>({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}/updates`,
+  });
+  return res.value;
 }
 
 /** Batch-fetch full work item details. ADO caps at 200 IDs per call; we chunk. */

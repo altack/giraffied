@@ -1,6 +1,6 @@
 # Jirafied — Status
 
-Last worked on: **2026-04-21** (Phase 4 + 5 landed)
+Last worked on: **2026-04-21** (Phase 6 landed)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -45,14 +45,26 @@ A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azu
 - **Drop-flicker fix**: a local `useState` overlay shadows `data` during the drop animation window. `onDragEnd` calls `flushSync(() => setOverlay(next))` so React's reconciler commits synchronously before hello-pangea/dnd's FLIP animation reads layout. `queryClient.setQueryData` alone is not enough — its observer notifications route through `useSyncExternalStore`, which isn't flushable from an event handler, so by the time React commits the cache update the library has already measured the old DOM and animated back to source. The cache is still `setQueryData`'d in parallel so refetches can't clobber the optimistic state; on mutation settle we drop the overlay and the cache takes over. Belt-and-suspenders: TaskCard sets `transitionDuration: 0.001s` while `isDropAnimating` per the hello-pangea drop-animation guide.
 - `parentId` = parent work-item id for regular lanes, `0` for "Everything else"; `previousId=0` / `nextId=0` pin to top/bottom
 
+### Phase 6 — Quick-edit modal ✅
+- Click card → draggable floating panel (centered on open, grab header to move anywhere, Esc to close). Non-modal by design — no backdrop, so the board stays fully interactive while the panel is open. Rendered via `createPortal` to `document.body` and clamped to viewport on resize.
+- Form body is Jira-shaped: Title (inline edit) · Status / Assignee / Points row · Description · Time tracking · History.
+- **Description** uses Basecamp's **Trix** web component (`trix` package, ~50kb gz) wrapped in a minimal React adapter (`DescriptionEditor.tsx`). Editor is HTML in/out, matching ADO's `System.Description` storage; file attachments are blocked via `trix-file-accept` preventDefault. Toolbar + content are re-themed to match the pearled dark aesthetic (overrides in `globals.css` under `.jfd-trix`).
+- **Assignee picker**: default list is **unique assignees currently on the board** (computed once in `BoardGrid` from swimlane rows + children + unparented, alphabetical, "Unassigned" pinned on top). Typing widens the search to the full `teams/{id}/members` list, deduped by uniqueName/id. The raw team-members endpoint is too noisy to show by default (retired/unrelated accounts).
+- **Time tracking**: separate quick-log affordance that PATCHes `Microsoft.VSTS.Scheduling.CompletedWork = current + delta`. Independent mutation from the main Save — user can log hours without touching the other fields. Negative values allowed for corrections.
+- **History**: reverse-chronological list from `GET /wit/workitems/{id}/updates`. Filters out noisy synthetic fields (`System.Rev`, `ChangedDate`, `BoardColumn`, `StackRank`, etc). Each event rendered with avatar + human-shaped summary ("Alice changed status To Do → In Progress · 2h ago"). Capped at 40 entries.
+- Single Save → one `PATCH /wit/workitems/{id}` with a JSON-Patch body of **only the changed fields** (`patchWorkItemFields`). Rollback via `onError` restoring the snapshot taken in `onMutate`.
+- Optimistic cache update mutates `TaskboardData` directly: fields on the work item, and — when State changed — the card's `taskboard.columnId/column/state` so it visually moves to the new column.
+- Drag vs click: hello-pangea/dnd lets a clean pointerdown-up through as a click when there's no drag movement, so `onClick` on the draggable `<article>` is enough. The CopyLinkButton is wrapped in `data-no-open` to keep it from double-triggering.
+
+### Phase 6 polish pass ✅
+- Primary `Button` variant no longer uses the indigo→violet gradient ("AI slop"). New default is pearled/glass: `bg-white/[0.09] backdrop-blur-xl border border-white/[0.14]` with a subtle inset highlight. The wordmark's gradient is the only remaining gradient in the app.
+- Modal dropped Remaining Work and Tags fields (not needed in v1).
+- `DEFAULT_WORKITEM_FIELDS` extended with `System.Description`, `System.Rev`, `Microsoft.VSTS.Scheduling.CompletedWork`.
+- New endpoint `listWorkItemUpdates(projectId, id)` wrapping `GET /_apis/wit/workitems/{id}/updates`.
+
 ---
 
 ## Remaining
-
-### Phase 6 — Quick-edit slide-over
-- Click card → right-side panel
-- Edit Title, State, AssignedTo (from `teams/{team}/members`), Story Points, Remaining Work, Tags
-- PATCH on save + optimistic update
 
 ### Phase 7 — Filters
 - Mine / tag / parent-story chips (client-side filter over cached work items)
