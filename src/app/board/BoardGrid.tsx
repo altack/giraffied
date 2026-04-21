@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
+import { Check } from 'lucide-react';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import type { AdoTaskboardColumn } from '@/ado/types';
-import { cn } from '@/lib/cn';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 
@@ -9,13 +9,20 @@ interface Row {
   key: string;
   banner: ReactNode;
   tasks: TaskOnBoard[];
-  isFirst: boolean;
+}
+
+/**
+ * Heuristic for rendering a Done-style check on completed columns. Names the synthesis
+ * path emits match native ADO state names (Done / Closed / Completed / Resolved).
+ */
+function isDoneColumn(name: string): boolean {
+  return /^(done|closed|completed|resolved)$/i.test(name.trim());
 }
 
 export function BoardGrid({ data }: { data: TaskboardData }) {
   const { columns, swimlanes, unparented } = data;
 
-  const rows: Row[] = swimlanes.map((lane, idx) => ({
+  const rows: Row[] = swimlanes.map((lane) => ({
     key: `lane-${lane.row.id}`,
     banner: (
       <SwimlaneBanner
@@ -25,28 +32,26 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
       />
     ),
     tasks: lane.tasks,
-    isFirst: idx === 0,
   }));
   if (unparented.length > 0) {
     rows.push({
       key: 'lane-unparented',
       banner: <UnparentedBanner totalTasks={unparented.length} />,
       tasks: unparented,
-      isFirst: rows.length === 0,
     });
   }
 
-  const gridTemplateColumns = `repeat(${columns.length}, minmax(280px, 1fr))`;
+  const gridTemplateColumns = `repeat(${columns.length}, minmax(260px, 1fr))`;
 
   return (
     <div className="flex-1 overflow-auto bg-zinc-950">
-      <div className="min-w-max">
-        {/* Column headers — sticky top, with a clear bottom border separating header row from board */}
+      <div className="min-w-max px-4 pt-4 pb-6 space-y-3">
+        {/* Column header pills — sticky top, aligned with the cell tracks below */}
         <div
-          className="grid sticky top-0 z-20 bg-zinc-950 border-b border-zinc-800"
+          className="grid gap-3 sticky top-0 z-20 bg-zinc-950 pb-2"
           style={{ gridTemplateColumns }}
         >
-          {columns.map((col, i) => (
+          {columns.map((col) => (
             <ColumnHeader
               key={col.id}
               column={col}
@@ -54,22 +59,19 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
                 (n, r) => n + r.tasks.filter((t) => t.taskboard.columnId === col.id).length,
                 0,
               )}
-              isLast={i === columns.length - 1}
             />
           ))}
         </div>
 
-        {/* Swimlanes — banner row + grid row of lane cells. Column tracks run vertically. */}
+        {/* Swimlanes — each is a full-width banner + a grid row of column cells */}
         {rows.map((row) => (
           <Fragment key={row.key}>
-            {!row.isFirst && <div className="h-px bg-zinc-800" />}
             {row.banner}
-            <div className="grid" style={{ gridTemplateColumns }}>
-              {columns.map((col, i) => (
+            <div className="grid gap-3" style={{ gridTemplateColumns }}>
+              {columns.map((col) => (
                 <ColumnCell
                   key={col.id}
                   tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
-                  isLast={i === columns.length - 1}
                 />
               ))}
             </div>
@@ -80,40 +82,23 @@ export function BoardGrid({ data }: { data: TaskboardData }) {
   );
 }
 
-function ColumnHeader({
-  column,
-  count,
-  isLast,
-}: {
-  column: AdoTaskboardColumn;
-  count: number;
-  isLast: boolean;
-}) {
+function ColumnHeader({ column, count }: { column: AdoTaskboardColumn; count: number }) {
   return (
-    <div
-      className={cn(
-        'px-4 py-2.5 flex items-center gap-2',
-        !isLast && 'border-r border-zinc-800',
-      )}
-    >
+    <div className="flex items-center gap-2 rounded-md bg-zinc-900/70 px-3 py-2">
       <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-300">
         {column.name}
       </span>
-      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-sm bg-zinc-800 text-[10px] font-mono text-zinc-400">
-        {count}
-      </span>
+      <span className="text-[11px] font-mono text-zinc-500">{count}</span>
+      {isDoneColumn(column.name) && count > 0 && (
+        <Check className="h-3.5 w-3.5 text-emerald-500 ml-auto" />
+      )}
     </div>
   );
 }
 
-function ColumnCell({ tasks, isLast }: { tasks: TaskOnBoard[]; isLast: boolean }) {
+function ColumnCell({ tasks }: { tasks: TaskOnBoard[] }) {
   return (
-    <div
-      className={cn(
-        'p-2 space-y-1.5 min-h-[96px] bg-zinc-900/25',
-        !isLast && 'border-r border-zinc-800',
-      )}
-    >
+    <div className="rounded-md bg-zinc-900/30 p-2 space-y-2 min-h-[88px]">
       {tasks.map((t) => (
         <TaskCard key={t.workItem.id} task={t} />
       ))}
