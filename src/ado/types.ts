@@ -59,6 +59,8 @@ export interface AdoTaskboardColumn {
 
 export interface AdoTaskboardColumns {
   columns: AdoTaskboardColumn[];
+  isCustomized?: boolean;
+  isValid?: boolean;
 }
 
 export interface AdoTaskboardWorkItem {

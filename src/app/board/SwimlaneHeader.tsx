@@ -1,62 +1,65 @@
+import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
 import { parseTags, workItemTypeStyle } from './workItemVisuals';
 
-export function SwimlaneHeader({ row, totalTasks }: { row: AdoWorkItem; totalTasks: number }) {
+export function SwimlaneBanner({
+  row,
+  totalTasks,
+  points,
+}: {
+  row: AdoWorkItem;
+  totalTasks: number;
+  points?: number;
+}) {
   const f = row.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
-  const points = f['Microsoft.VSTS.Scheduling.StoryPoints'];
   const tags = parseTags(f['System.Tags']);
 
   return (
-    <div className="px-3 py-3 border-r border-zinc-800">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
-            type.bg,
-            type.fg,
-            type.border,
-          )}
-        >
-          {type.label}
-        </span>
-        <span className="text-[11px] font-mono text-zinc-500">#{row.id}</span>
-      </div>
-      <div className="text-sm text-zinc-100 leading-snug font-medium line-clamp-3">
-        {f['System.Title']}
-      </div>
-      <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
-        <span>
-          {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
-        </span>
-        {points != null && <span className="font-mono">{points} pts</span>}
-      </div>
+    <div className="flex items-center gap-2 px-4 py-2 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-900 text-sm">
+      <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+      <span
+        className={cn(
+          'inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide shrink-0',
+          type.bg,
+          type.fg,
+          type.border,
+        )}
+      >
+        {type.label}
+      </span>
+      <span className="text-[11px] font-mono text-zinc-500 shrink-0">#{row.id}</span>
+      <span className="text-zinc-200 font-medium truncate">{f['System.Title']}</span>
       {tags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300"
+              className="inline-flex items-center rounded-sm bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-300"
             >
               {tag}
             </span>
           ))}
-          {tags.length > 2 && (
-            <span className="text-[10px] text-zinc-500">+{tags.length - 2}</span>
-          )}
         </div>
       )}
+      <div className="ml-auto flex items-center gap-3 text-[11px] text-zinc-500 shrink-0">
+        {points != null && <span className="font-mono">{points} pts</span>}
+        <span>
+          {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
+        </span>
+      </div>
     </div>
   );
 }
 
-export function UnparentedSwimlaneHeader({ totalTasks }: { totalTasks: number }) {
+export function UnparentedBanner({ totalTasks }: { totalTasks: number }) {
   return (
-    <div className="px-3 py-3 border-r border-zinc-800">
-      <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-1">Unparented</div>
-      <div className="text-sm text-zinc-400 leading-snug">Tasks without a parent in this sprint</div>
-      <div className="mt-2 text-[11px] text-zinc-500">
+    <div className="flex items-center gap-2 px-4 py-2 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-900 text-sm">
+      <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+      <span className="text-zinc-400 font-medium">Unparented</span>
+      <span className="text-xs text-zinc-600">— tasks with no parent in this sprint</span>
+      <div className="ml-auto text-[11px] text-zinc-500">
         {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
       </div>
     </div>

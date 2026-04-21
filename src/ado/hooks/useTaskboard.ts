@@ -103,33 +103,37 @@ function deriveColumnsFromItems(items: AdoTaskboardWorkItem[]): AdoTaskboardColu
   return cols;
 }
 
+/** One column per non-Removed state — matches what native ADO renders when the team
+ *  has not customized taskboard columns. Category gives the primary sort order so
+ *  Proposed (To Do) comes before InProgress before Resolved before Completed (Done). */
 function synthesizeFromWorkItemType(taskType: AdoWorkItemType): {
   columns: AdoTaskboardColumn[];
   stateToColumnId: Map<string, string>;
 } {
-  const COL = { todo: 'synth-todo', doing: 'synth-doing', done: 'synth-done' };
-  const proposed: string[] = [];
-  const inProgress: string[] = [];
-  const done: string[] = [];
-  for (const s of taskType.states) {
-    if (s.category === 'Proposed') proposed.push(s.name);
-    else if (s.category === 'InProgress') inProgress.push(s.name);
-    else if (s.category === 'Resolved' || s.category === 'Completed') done.push(s.name);
-  }
-  const columns: AdoTaskboardColumn[] = [];
+  const CATEGORY_ORDER: Record<string, number> = {
+    Proposed: 0,
+    InProgress: 1,
+    Resolved: 2,
+    Completed: 3,
+  };
+  const visible = taskType.states.filter((s) => s.category !== 'Removed');
+  // Remember the original API order to break ties within a category.
+  const apiIndex = new Map(visible.map((s, i) => [s.name, i]));
+
+  const columns: AdoTaskboardColumn[] = visible.map((s) => ({
+    id: `state-${s.name}`,
+    name: s.name,
+    mappings: { Task: s.name },
+  }));
+  columns.sort((a, b) => {
+    const sa = visible.find((s) => s.name === a.name)!;
+    const sb = visible.find((s) => s.name === b.name)!;
+    const diff = (CATEGORY_ORDER[sa.category] ?? 99) - (CATEGORY_ORDER[sb.category] ?? 99);
+    return diff !== 0 ? diff : apiIndex.get(a.name)! - apiIndex.get(b.name)!;
+  });
+
   const stateToColumnId = new Map<string, string>();
-  if (proposed.length) {
-    columns.push({ id: COL.todo, name: 'To Do', mappings: { Task: proposed[0] } });
-    for (const n of proposed) stateToColumnId.set(n, COL.todo);
-  }
-  if (inProgress.length) {
-    columns.push({ id: COL.doing, name: 'In Progress', mappings: { Task: inProgress[0] } });
-    for (const n of inProgress) stateToColumnId.set(n, COL.doing);
-  }
-  if (done.length) {
-    columns.push({ id: COL.done, name: 'Done', mappings: { Task: done[done.length - 1] } });
-    for (const n of done) stateToColumnId.set(n, COL.done);
-  }
+  for (const s of visible) stateToColumnId.set(s.name, `state-${s.name}`);
   return { columns, stateToColumnId };
 }
 
@@ -200,13 +204,23 @@ async function loadTaskboard(
   const relationsData = unwrap(relations, () => false);
   if (!relationsData) throw new Error('Unreachable');
 
-  // Both taskboard endpoints tolerate the "not customized" 400
-  const columnsResult = unwrap(columnsRaw, isColumnsNotCustomizedError);
+  // Both taskboard endpoints tolerate the "not customized" 400.
+  const columnsResultRaw = unwrap(columnsRaw, isColumnsNotCustomizedError);
   const itemsResult = unwrap(itemsRaw, isColumnsNotCustomizedError);
+
+  // `{columns: [], isCustomized: false}` means "team hasn't customized" — treat as null
+  // so we fall through to per-state synthesis matching the native default rendering.
+  const columnsResult =
+    columnsResultRaw &&
+    columnsResultRaw.isCustomized !== false &&
+    columnsResultRaw.columns.length > 0
+      ? columnsResultRaw
+      : null;
 
   log('relations', { relationCount: relationsData.workItemRelations.length });
   log('taskboard endpoints', {
     hasColumns: !!columnsResult,
+    isCustomized: columnsResultRaw?.isCustomized,
     hasItems: !!itemsResult,
     itemCount: itemsResult?.value.length,
   });
