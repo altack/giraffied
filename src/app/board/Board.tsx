@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import { AlertCircle, CalendarOff, Loader2 } from 'lucide-react';
 import { useTaskboard } from '@/ado/hooks/useTaskboard';
 import { AdoError } from '@/ado/client';
+import { useSettings } from '@/state/settings.store';
+import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { TopBar } from './TopBar';
 import { BoardGrid } from './BoardGrid';
 
@@ -16,9 +19,46 @@ export function Board() {
     isFetching,
   } = useTaskboard();
 
+  // Derive the same lane-key set BoardGrid uses (lane-${parentId} + lane-unparented).
+  // Cheap to recompute here; duplicating 3 lines beats plumbing a callback from the grid.
+  const laneKeys = useMemo<string[]>(() => {
+    if (!board) return [];
+    const keys = board.swimlanes.map((lane) => `lane-${lane.row.id}`);
+    if (board.unparented.length > 0) keys.push('lane-unparented');
+    return keys;
+  }, [board]);
+
+  const org = useSettings((s) => s.org);
+  const projectId = useSettings((s) => s.projectId);
+  const teamId = useSettings((s) => s.teamId);
+  const contextKey = laneContextKey(org, projectId, teamId, iteration?.id);
+  const collapsedArr = useCollapsedLanes((s) =>
+    contextKey ? s.byContext[contextKey] : undefined,
+  );
+  const collapseAll = useCollapsedLanes((s) => s.collapseAll);
+  const expandAll = useCollapsedLanes((s) => s.expandAll);
+
+  const allCollapsed =
+    laneKeys.length > 0 &&
+    !!collapsedArr &&
+    laneKeys.every((k) => collapsedArr.includes(k));
+
+  const toggleAllLanes = () => {
+    if (!contextKey || laneKeys.length === 0) return;
+    if (allCollapsed) expandAll(contextKey);
+    else collapseAll(contextKey, laneKeys);
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <TopBar iteration={iteration ?? undefined} onRefresh={refetch} isFetching={isFetching} />
+      <TopBar
+        iteration={iteration ?? undefined}
+        onRefresh={refetch}
+        isFetching={isFetching}
+        canToggleLanes={laneKeys.length > 0}
+        allLanesCollapsed={allCollapsed}
+        onToggleAllLanes={toggleAllLanes}
+      />
       <BoardBody
         iterationLoading={iterationLoading}
         iterationError={iterationError}

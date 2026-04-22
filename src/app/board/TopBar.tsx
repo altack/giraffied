@@ -1,7 +1,7 @@
-import { RefreshCw, LogOut, Loader2 } from 'lucide-react';
+import { RefreshCw, Loader2, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useSettings } from '@/state/settings.store';
 import type { AdoIteration } from '@/ado/types';
+import { ContextSwitcher } from './ContextSwitcher';
 
 function formatRange(iteration: AdoIteration | undefined): string | null {
   if (!iteration) return null;
@@ -15,12 +15,17 @@ export function TopBar({
   iteration,
   onRefresh,
   isFetching,
+  canToggleLanes,
+  allLanesCollapsed,
+  onToggleAllLanes,
 }: {
   iteration: AdoIteration | undefined;
   onRefresh: () => void;
   isFetching: boolean;
+  canToggleLanes: boolean;
+  allLanesCollapsed: boolean;
+  onToggleAllLanes: () => void;
 }) {
-  const { org, projectName, teamName, reset } = useSettings();
   const range = formatRange(iteration);
 
   return (
@@ -37,21 +42,29 @@ export function TopBar({
           <span className="mono text-[11px] text-zinc-500 shrink-0">{range}</span>
         )}
         <Sep />
-        <span className="text-[12px] text-zinc-500 truncate">
-          {org} <span className="text-zinc-700 mx-1">/</span> {projectName}{' '}
-          <span className="text-zinc-700 mx-1">/</span> {teamName}
-        </span>
+        <ContextSwitcher />
       </div>
       <div className="flex items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon"
+          title={allLanesCollapsed ? 'Expand all lanes' : 'Collapse all lanes'}
+          onClick={onToggleAllLanes}
+          disabled={!canToggleLanes}
+          aria-pressed={allLanesCollapsed}
+        >
+          {allLanesCollapsed ? (
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronsDownUp className="h-3.5 w-3.5" />
+          )}
+        </Button>
         <Button variant="ghost" size="icon" title="Refresh" onClick={onRefresh} disabled={isFetching}>
           {isFetching ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
-        </Button>
-        <Button variant="ghost" size="icon" title="Sign out" onClick={() => reset()}>
-          <LogOut className="h-3.5 w-3.5" />
         </Button>
       </div>
     </header>

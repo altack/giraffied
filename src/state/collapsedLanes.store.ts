@@ -10,6 +10,7 @@ interface CollapsedLanesState {
   byContext: Record<string, string[]>;
   toggle: (contextKey: string, laneKey: string) => void;
   expandAll: (contextKey: string) => void;
+  collapseAll: (contextKey: string, laneKeys: string[]) => void;
 }
 
 export const useCollapsedLanes = create<CollapsedLanesState>()(
@@ -32,6 +33,10 @@ export const useCollapsedLanes = create<CollapsedLanesState>()(
           const { [contextKey]: _, ...rest } = state.byContext;
           return { byContext: rest };
         }),
+      collapseAll: (contextKey, laneKeys) =>
+        set((state) => ({
+          byContext: { ...state.byContext, [contextKey]: [...laneKeys] },
+        })),
     }),
     {
       name: 'jirafied-collapsed-lanes',

@@ -12,6 +12,12 @@ export interface SettingsState {
   setCredentials: (org: string, pat: string) => void;
   setProject: (id: string, name: string) => void;
   setTeam: (id: string, name: string) => void;
+  setProjectAndTeam: (
+    projectId: string,
+    projectName: string,
+    teamId: string,
+    teamName: string,
+  ) => void;
   reset: () => void;
 }
 
@@ -28,6 +34,8 @@ export const useSettings = create<SettingsState>()(
       setProject: (projectId, projectName) =>
         set({ projectId, projectName, teamId: null, teamName: null }),
       setTeam: (teamId, teamName) => set({ teamId, teamName }),
+      setProjectAndTeam: (projectId, projectName, teamId, teamName) =>
+        set({ projectId, projectName, teamId, teamName }),
       reset: () =>
         set({
           org: null,
