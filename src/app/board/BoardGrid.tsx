@@ -12,6 +12,7 @@ import {
 import { useSettings } from '@/state/settings.store';
 import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { cn } from '@/lib/cn';
+import { CreateTaskDialog, appendCreatedTask } from './CreateTaskDialog';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 import { WorkItemModal } from './WorkItemModal';
@@ -59,11 +60,13 @@ function parseDraggableId(id: string): number | null {
 export function BoardGrid({
   data,
   iterationId,
+  iterationPath,
   assignees,
   assigneeFilter,
 }: {
   data: TaskboardData;
   iterationId: string;
+  iterationPath: string;
   assignees: AdoIdentity[];
   assigneeFilter: string | null;
 }) {
@@ -73,6 +76,10 @@ export function BoardGrid({
   // the overlay and the query cache takes over again.
   const [overlay, setOverlay] = useState<TaskboardData | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // `null` = dialog closed. Number = parent lane id. `0` sentinel = unparented.
+  // We distinguish "unparented" from "null/closed" by using a separate flag so
+  // the dialog's `defaultParentId` can be `null` without being mistaken for closed.
+  const [createFor, setCreateFor] = useState<{ parentId: number | null } | null>(null);
   const baseData = overlay ?? data;
 
   // Apply the assignee filter as a view-only projection. A lane is included
@@ -172,6 +179,7 @@ export function BoardGrid({
         collapsed={collapsed}
         onToggle={onToggle}
         onOpen={() => setSelectedId(lane.row.id)}
+        onCreate={() => setCreateFor({ parentId: lane.row.id })}
       />
     ),
     tasks: lane.tasks,
@@ -183,7 +191,12 @@ export function BoardGrid({
       parentId: 0,
       hue: laneHueRgb(undefined),
       banner: ({ collapsed, onToggle }) => (
-        <UnparentedBanner totalTasks={unparented.length} collapsed={collapsed} onToggle={onToggle} />
+        <UnparentedBanner
+          totalTasks={unparented.length}
+          collapsed={collapsed}
+          onToggle={onToggle}
+          onCreate={() => setCreateFor({ parentId: null })}
+        />
       ),
       tasks: unparented,
     });
@@ -363,6 +376,24 @@ export function BoardGrid({
           onClose={() => setSelectedId(null)}
           iterationId={iterationId}
           boardAssignees={assignees}
+        />
+      )}
+      {createFor && (
+        <CreateTaskDialog
+          // Key on parentId so switching lanes via the dropdown doesn't keep a
+          // stale draft; closing + reopening on a different lane remounts.
+          key={createFor.parentId ?? 'unparented'}
+          open
+          onClose={() => setCreateFor(null)}
+          defaultParentId={createFor.parentId}
+          swimlanes={baseData.swimlanes}
+          iterationPath={iterationPath}
+          boardAssignees={assignees}
+          onCreated={(created, parentId) => {
+            queryClient.setQueryData<TaskboardData>(queryKey, (prev) =>
+              prev ? appendCreatedTask(prev, created, parentId) : prev,
+            );
+          }}
         />
       )}
     </DragDropContext>

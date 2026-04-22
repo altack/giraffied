@@ -207,6 +207,18 @@ export interface AdoConnectionData {
   authorizedUser?: AdoConnectionData['authenticatedUser'];
 }
 
+/** Reply from `GET /{project}/{team}/_apis/work/teamsettings/teamfieldvalues`.
+ *  Used to learn the team's default area path for new work items that have no
+ *  parent to copy it from. The `field.referenceName` is usually
+ *  `System.AreaPath`; `defaultValue` is the tree-path string ADO expects in
+ *  `System.AreaPath`. */
+export interface AdoTeamFieldValues {
+  field: { referenceName: string; url?: string };
+  defaultValue: string;
+  values: Array<{ value: string; includeChildren: boolean }>;
+  url?: string;
+}
+
 /** Shape of an item returned from `GET /wit/workitems/{id}/updates`. Each entry is a
  *  revision event — the diff of fields between revs and the person who made it. */
 export interface AdoWorkItemUpdate {

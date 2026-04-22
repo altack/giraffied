@@ -11,6 +11,7 @@ import type {
   AdoTaskboardColumns,
   AdoTaskboardWorkItems,
   AdoTeam,
+  AdoTeamFieldValues,
   AdoTeamMember,
   AdoWorkItem,
   AdoWorkItemComment,
@@ -268,6 +269,53 @@ export async function listWorkItemUpdates(
     path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}/updates`,
   });
   return res.value;
+}
+
+/** GET the team's area-path field settings. We use `defaultValue` for the
+ *  area path of new work items that aren't hanging off a parent (the parent's
+ *  own `System.AreaPath` is the preferred source when available). */
+export function getTeamFieldValues(
+  projectId: string,
+  teamId: string,
+): Promise<AdoTeamFieldValues> {
+  return ado<AdoTeamFieldValues>({
+    path: `/${encodeURIComponent(projectId)}/${encodeURIComponent(teamId)}/_apis/work/teamsettings/teamfieldvalues`,
+  });
+}
+
+/** Create a work item of the given type. Fields are passed as JSON-Patch `add` ops
+ *  on `/fields/{name}`. When `parentUrl` is provided (the parent work item's
+ *  `url` field from any prior ADO response), a `Hierarchy-Reverse` relation is
+ *  appended so the new item becomes a child of that work item.
+ *
+ *  We deliberately do NOT set `System.State` — ADO applies the team's default
+ *  new-item state, which is whichever one maps to the leftmost taskboard column
+ *  for most projects. Setting it explicitly would require knowing the mapping
+ *  per team, and teams with custom initial states would end up wrong. */
+export function createWorkItem(
+  projectId: string,
+  typeName: string,
+  fields: Record<string, AdoFieldValue>,
+  parentUrl?: string,
+): Promise<AdoWorkItem> {
+  const ops: Array<{ op: 'add'; path: string; value: unknown }> = [];
+  for (const [name, value] of Object.entries(fields)) {
+    if (value === null || value === '') continue;
+    ops.push({ op: 'add', path: `/fields/${name}`, value });
+  }
+  if (parentUrl) {
+    ops.push({
+      op: 'add',
+      path: '/relations/-',
+      value: { rel: 'System.LinkTypes.Hierarchy-Reverse', url: parentUrl },
+    });
+  }
+  return ado<AdoWorkItem>({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/$${encodeURIComponent(typeName)}`,
+    method: 'POST',
+    contentType: 'application/json-patch+json',
+    body: ops,
+  });
 }
 
 /** Batch-fetch full work item details. ADO caps at 200 IDs per call; we chunk. */

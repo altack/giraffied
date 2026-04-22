@@ -132,6 +132,7 @@ export function Board() {
         iterationError={iterationError}
         hasIteration={!!iteration}
         iterationId={iteration?.id}
+        iterationPath={iteration?.path}
         boardLoading={boardLoading}
         boardError={boardError}
         board={board}
@@ -147,6 +148,7 @@ function BoardBody({
   iterationError,
   hasIteration,
   iterationId,
+  iterationPath,
   boardLoading,
   boardError,
   board,
@@ -157,6 +159,7 @@ function BoardBody({
   iterationError: unknown;
   hasIteration: boolean;
   iterationId: string | undefined;
+  iterationPath: string | undefined;
   boardLoading: boolean;
   boardError: unknown;
   board: ReturnType<typeof useTaskboard>['board'];
@@ -201,6 +204,7 @@ function BoardBody({
     <BoardGrid
       data={board}
       iterationId={iterationId}
+      iterationPath={iterationPath ?? ''}
       assignees={assignees}
       assigneeFilter={assigneeFilter}
     />

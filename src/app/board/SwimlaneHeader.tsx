@@ -4,6 +4,7 @@ import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
 import { parseTags, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
+import { CreateTaskButton } from './CreateTaskButton';
 import { OpenLinkButton } from './OpenLinkButton';
 import { Avatar } from './Avatar';
 
@@ -65,6 +66,7 @@ export function SwimlaneBanner({
   collapsed,
   onToggle,
   onOpen,
+  onCreate,
 }: {
   row: AdoWorkItem;
   totalTasks: number;
@@ -72,6 +74,7 @@ export function SwimlaneBanner({
   collapsed: boolean;
   onToggle: () => void;
   onOpen?: () => void;
+  onCreate?: () => void;
 }) {
   const f = row.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
@@ -130,6 +133,9 @@ export function SwimlaneBanner({
       <span className="ml-0.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-100 shrink-0">
         <CopyLinkButton workItemId={row.id} />
         <OpenLinkButton workItemId={row.id} />
+        {onCreate && (
+          <CreateTaskButton onClick={onCreate} title={`Add task under ${f['System.Title']}`} />
+        )}
       </span>
     </BannerShell>
   );
@@ -139,10 +145,12 @@ export function UnparentedBanner({
   totalTasks,
   collapsed,
   onToggle,
+  onCreate,
 }: {
   totalTasks: number;
   collapsed: boolean;
   onToggle: () => void;
+  onCreate?: () => void;
 }) {
   return (
     <BannerShell collapsed={collapsed} onToggle={onToggle}>
@@ -150,6 +158,11 @@ export function UnparentedBanner({
       <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint
       </span>
+      {onCreate && (
+        <span className="ml-1 flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-100">
+          <CreateTaskButton onClick={onCreate} title="Add task with no parent" />
+        </span>
+      )}
     </BannerShell>
   );
 }
