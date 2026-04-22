@@ -115,6 +115,8 @@ export interface AdoWorkItemFields {
   'System.IterationPath'?: string;
   'System.AreaPath'?: string;
   'Microsoft.VSTS.Scheduling.StoryPoints'?: number;
+  'Microsoft.VSTS.Scheduling.Effort'?: number;
+  'Microsoft.VSTS.Scheduling.Size'?: number;
   'Microsoft.VSTS.Scheduling.RemainingWork'?: number;
   'Microsoft.VSTS.Scheduling.CompletedWork'?: number;
   'Microsoft.VSTS.Common.StackRank'?: number;
@@ -160,6 +162,8 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'System.IterationPath',
   'System.AreaPath',
   'Microsoft.VSTS.Scheduling.StoryPoints',
+  'Microsoft.VSTS.Scheduling.Effort',
+  'Microsoft.VSTS.Scheduling.Size',
   'Microsoft.VSTS.Scheduling.RemainingWork',
   'Microsoft.VSTS.Scheduling.CompletedWork',
   'Microsoft.VSTS.Common.StackRank',

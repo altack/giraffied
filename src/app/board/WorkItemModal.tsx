@@ -43,11 +43,17 @@ import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
 import { CommentsPanel } from './CommentsPanel';
 import { CopyLinkButton } from './CopyLinkButton';
-import { DescriptionEditor } from './DescriptionEditor';
+import { DescriptionField } from './DescriptionField';
 import { HistoryPanel } from './HistoryPanel';
 import { WorkLogPanel } from './WorkLogPanel';
 import { formatHours } from './timeFormat';
-import { workItemTypeStyle } from './workItemVisuals';
+import {
+  readPoints,
+  workItemTypeStyle,
+  writePointsFieldFor,
+  POINTS_FIELDS,
+  type PointsFieldName,
+} from './workItemVisuals';
 
 const NUMBER_RE = /^-?\d*(\.\d*)?$/;
 
@@ -68,7 +74,7 @@ function toDraft(task: TaskOnBoard): Draft {
     title: f['System.Title'] ?? '',
     state: f['System.State'] ?? '',
     assignee: f['System.AssignedTo'] ?? null,
-    storyPoints: numToStr(f['Microsoft.VSTS.Scheduling.StoryPoints']),
+    storyPoints: numToStr(readPoints(f)),
     tags: splitTags(f['System.Tags']),
     description: f['System.Description'] ?? '',
   };
@@ -105,6 +111,7 @@ function parseOptionalNumber(s: string): number | null | 'invalid' {
 function buildPatches(
   original: Draft,
   draft: Draft,
+  pointsField: PointsFieldName,
 ): { patches: AdoFieldPatch[]; error?: string } {
   const patches: AdoFieldPatch[] = [];
 
@@ -127,7 +134,7 @@ function buildPatches(
   if (draft.storyPoints !== original.storyPoints) {
     const v = parseOptionalNumber(draft.storyPoints);
     if (v === 'invalid') return { patches: [], error: 'Story Points must be a number' };
-    patches.push({ field: 'Microsoft.VSTS.Scheduling.StoryPoints', value: v });
+    patches.push({ field: pointsField, value: v });
   }
   if (!tagsEqual(draft.tags, original.tags)) {
     patches.push({ field: 'System.Tags', value: joinTags(draft.tags) });
@@ -143,6 +150,7 @@ function applyDraftToTaskboard(
   workItemId: number,
   wiType: string,
   draft: Draft,
+  pointsField: PointsFieldName,
 ): TaskboardData {
   const mappedCol = data.columns.find(
     (c) => (c.mappings[wiType] ?? null) === draft.state,
@@ -150,17 +158,22 @@ function applyDraftToTaskboard(
 
   const patchFields = (fields: AdoWorkItem['fields']): AdoWorkItem['fields'] => {
     const sp = parseOptionalNumber(draft.storyPoints);
+    const nextPoints = sp === 'invalid' ? fields[pointsField] : (sp as number | null) ?? undefined;
+    // Clear any sibling points fields so the banner's readPoints resolver doesn't
+    // fall back to a stale value that used to live under a different field name.
+    const clearedSiblings: Partial<Record<PointsFieldName, undefined>> = {};
+    for (const f of POINTS_FIELDS) {
+      if (f !== pointsField) clearedSiblings[f] = undefined;
+    }
     return {
       ...fields,
+      ...clearedSiblings,
       'System.Title': draft.title.trim() || fields['System.Title'],
       'System.State': draft.state,
       'System.AssignedTo': draft.assignee ?? undefined,
       'System.Description': draft.description,
       'System.Tags': joinTags(draft.tags),
-      'Microsoft.VSTS.Scheduling.StoryPoints':
-        sp === 'invalid'
-          ? fields['Microsoft.VSTS.Scheduling.StoryPoints']
-          : (sp as number | null) ?? undefined,
+      [pointsField]: nextPoints,
     };
   };
 
@@ -249,6 +262,13 @@ export function WorkItemModal({
     [columns, wiType, original.state],
   );
 
+  // Pick the points field to write back to — whichever one currently holds a value,
+  // or the template default for this work-item type.
+  const pointsField = useMemo(
+    () => writePointsFieldFor(task.workItem.fields),
+    [task.workItem.fields],
+  );
+
   const dirty =
     draft.title !== original.title ||
     draft.state !== original.state ||
@@ -260,7 +280,7 @@ export function WorkItemModal({
   const save = useMutation({
     mutationFn: async () => {
       if (!projectId) throw new Error('Missing project');
-      const { patches, error } = buildPatches(original, draft);
+      const { patches, error } = buildPatches(original, draft, pointsField);
       if (error) throw new Error(error);
       if (patches.length === 0) return null;
       return patchWorkItemFields(projectId, task.workItem.id, patches);
@@ -270,7 +290,7 @@ export function WorkItemModal({
       if (prev) {
         queryClient.setQueryData<TaskboardData>(
           queryKey,
-          applyDraftToTaskboard(prev, task.workItem.id, wiType, draft),
+          applyDraftToTaskboard(prev, task.workItem.id, wiType, draft, pointsField),
         );
       }
       return { prev };
@@ -294,7 +314,7 @@ export function WorkItemModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const { error } = buildPatches(original, draft);
+    const { error } = buildPatches(original, draft, pointsField);
     if (error) {
       setError(error);
       return;
@@ -375,10 +395,9 @@ export function WorkItemModal({
           />
 
           <Section label="Description">
-            <DescriptionEditor
+            <DescriptionField
               value={draft.description}
               onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
-              variant="plain"
               placeholder="Add a description…"
             />
           </Section>

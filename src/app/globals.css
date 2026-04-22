@@ -92,18 +92,30 @@ body {
   transition: background-color 120ms, color 120ms;
 }
 .jfd-trix trix-toolbar .trix-button::before {
-  opacity: 0.75;
+  /* Trix ships each icon as a data-URI SVG with a hardcoded black fill (`fill='%23000'`).
+   * `color` doesn't apply — the icon is a background-image, not currentColor text.
+   * Inverting the ::before turns the black fill into near-white against our dark toolbar. */
+  filter: invert(0.92);
+  opacity: 0.85;
   top: 4px; right: 4px; bottom: 4px; left: 4px;
 }
 .jfd-trix trix-toolbar .trix-button:not([disabled]):hover {
   background: rgb(255 255 255 / 0.05);
-  color: #e6e6ea;
+}
+.jfd-trix trix-toolbar .trix-button:not([disabled]):hover::before {
+  filter: invert(1);
+  opacity: 1;
 }
 .jfd-trix trix-toolbar .trix-button.trix-active {
   background: rgb(129 140 248 / 0.14);
-  color: #c7d2fe;
 }
-.jfd-trix trix-toolbar .trix-button[disabled] { opacity: 0.3; }
+.jfd-trix trix-toolbar .trix-button.trix-active::before {
+  /* Inverting from black produces a cool-white; tint toward indigo for the active state. */
+  filter: invert(1) sepia(0.3) hue-rotate(210deg) saturate(1.8);
+  opacity: 1;
+}
+.jfd-trix trix-toolbar .trix-button[disabled] { opacity: 1; }
+.jfd-trix trix-toolbar .trix-button[disabled]::before { opacity: 0.3; }
 .jfd-trix trix-toolbar .trix-dialogs { position: relative; }
 .jfd-trix trix-toolbar .trix-dialog {
   background: var(--color-surface-2);
@@ -171,7 +183,14 @@ body {
   text-decoration-color: rgb(129 140 248 / 0.4);
   text-underline-offset: 2px;
 }
+/* Tailwind v4's preflight sets `list-style: none` on ul/ol project-wide. Rich-text
+ * surfaces need the markers back — set them explicitly within each scope. */
 .jfd-trix .trix-content ul, .jfd-trix .trix-content ol { padding-left: 20px; margin: 4px 0; }
+.jfd-trix .trix-content ul { list-style-type: disc; }
+.jfd-trix .trix-content ol { list-style-type: decimal; }
+.jfd-trix .trix-content li { padding-left: 2px; }
+.jfd-trix .trix-content ul ul { list-style-type: circle; }
+.jfd-trix .trix-content ul ul ul { list-style-type: square; }
 
 /* --- Variants: plain (description) + minimal (comment composer) ---------
  * Both hide the toolbar until the editor is focused, matching the click-to-edit
@@ -209,19 +228,43 @@ body {
 }
 
 
-/* --- Read-only comment body rendering ----------------------------------- */
-.jfd-comment-body > :first-child { margin-top: 0; }
-.jfd-comment-body > :last-child { margin-bottom: 0; }
-.jfd-comment-body p { margin: 4px 0; }
-.jfd-comment-body ul, .jfd-comment-body ol { padding-left: 20px; margin: 4px 0; }
-.jfd-comment-body blockquote {
+/* --- Read-only rich-text rendering --------------------------------------
+ * Shared between the comments list and the description view-mode (the modal's
+ * default). Both render ADO-stored HTML via dangerouslySetInnerHTML to preserve
+ * tables/images/formatting that Trix would otherwise strip. */
+.jfd-comment-body,
+.jfd-description-body {
+  /* Long URLs / inline code / code without spaces would otherwise push the column
+   * wider than the modal. Anywhere break is the right tradeoff for a narrow pane. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.jfd-comment-body > :first-child,
+.jfd-description-body > :first-child { margin-top: 0; }
+.jfd-comment-body > :last-child,
+.jfd-description-body > :last-child { margin-bottom: 0; }
+.jfd-comment-body p,
+.jfd-description-body p { margin: 4px 0; }
+.jfd-comment-body ul, .jfd-comment-body ol,
+.jfd-description-body ul, .jfd-description-body ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+.jfd-comment-body ul, .jfd-description-body ul { list-style-type: disc; }
+.jfd-comment-body ol, .jfd-description-body ol { list-style-type: decimal; }
+.jfd-comment-body li, .jfd-description-body li { padding-left: 2px; }
+.jfd-comment-body ul ul, .jfd-description-body ul ul { list-style-type: circle; }
+.jfd-comment-body ul ul ul, .jfd-description-body ul ul ul { list-style-type: square; }
+.jfd-comment-body blockquote,
+.jfd-description-body blockquote {
   border-left: 2px solid rgb(255 255 255 / 0.14);
   padding: 2px 0 2px 10px;
   color: var(--color-ink-muted);
   margin: 4px 0;
   font-size: 12px;
 }
-.jfd-comment-body pre {
+.jfd-comment-body pre,
+.jfd-description-body pre {
   background: rgb(0 0 0 / 0.3);
   border: 1px solid rgb(255 255 255 / 0.06);
   border-radius: 4px;
@@ -229,21 +272,57 @@ body {
   font-family: var(--font-mono);
   font-size: 12px;
   overflow-x: auto;
+  max-width: 100%;
+  white-space: pre;
 }
-.jfd-comment-body code {
+.jfd-comment-body code,
+.jfd-description-body code {
   font-family: var(--font-mono);
   font-size: 12px;
   background: rgb(255 255 255 / 0.05);
   padding: 1px 4px;
   border-radius: 3px;
 }
-.jfd-comment-body a {
+.jfd-comment-body a,
+.jfd-description-body a {
   color: var(--color-accent);
   text-decoration: underline;
   text-decoration-color: rgb(129 140 248 / 0.4);
   text-underline-offset: 2px;
 }
-.jfd-comment-body strong { color: inherit; }
+.jfd-comment-body strong,
+.jfd-description-body strong { color: inherit; }
+/* Keep embedded images/tables inside their column. Tables scroll horizontally
+ * when they're wider than the pane; images scale down. */
+.jfd-comment-body img,
+.jfd-description-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.jfd-comment-body table,
+.jfd-description-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+.jfd-comment-body th, .jfd-comment-body td,
+.jfd-description-body th, .jfd-description-body td {
+  border: 1px solid rgb(255 255 255 / 0.08);
+  padding: 4px 8px;
+  font-size: 12px;
+  vertical-align: top;
+}
+.jfd-comment-body th,
+.jfd-description-body th { background: rgb(255 255 255 / 0.03); font-weight: 600; }
+/* Description-specific: heading rendering ADO emits as <h1>..<h4>. */
+.jfd-description-body h1 { font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+.jfd-description-body h2 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
+.jfd-description-body h3, .jfd-description-body h4 {
+  font-size: 13px; font-weight: 600; margin: 6px 0 2px;
+}
 
 
 /* Scrollbar refinement — thin, hairline, only visible on hover. */

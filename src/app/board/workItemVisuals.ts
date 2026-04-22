@@ -59,3 +59,56 @@ export function parseTags(tags: string | undefined): string[] {
     .map((t) => t.trim())
     .filter(Boolean);
 }
+
+/** ADO stores "story points" under different field refs depending on the project's
+ *  process template: Agile → StoryPoints, Scrum → Effort, CMMI → Size. This picks
+ *  the right one for a work-item type so reads/writes land in the expected place. */
+export const POINTS_FIELDS = [
+  'Microsoft.VSTS.Scheduling.StoryPoints',
+  'Microsoft.VSTS.Scheduling.Effort',
+  'Microsoft.VSTS.Scheduling.Size',
+] as const;
+
+export type PointsFieldName = (typeof POINTS_FIELDS)[number];
+
+export function pointsFieldForType(wiType: string): PointsFieldName {
+  switch (wiType) {
+    case 'Product Backlog Item':
+    case 'Bug': // Scrum-template Bugs track Effort; Agile-template Bugs use StoryPoints
+      return 'Microsoft.VSTS.Scheduling.Effort';
+    case 'Requirement':
+      return 'Microsoft.VSTS.Scheduling.Size';
+    default:
+      return 'Microsoft.VSTS.Scheduling.StoryPoints';
+  }
+}
+
+/** Read the points value from a fields record. Uses the type-specific field first,
+ *  then falls back to whichever sibling field happens to be populated — handles
+ *  orgs that mix templates or have imported items from another process. */
+export function readPoints(
+  fields: Partial<Record<PointsFieldName, number | undefined>> & {
+    'System.WorkItemType'?: string;
+  },
+): number | undefined {
+  const primary = pointsFieldForType(fields['System.WorkItemType'] ?? '');
+  if (fields[primary] != null) return fields[primary];
+  for (const f of POINTS_FIELDS) {
+    if (fields[f] != null) return fields[f];
+  }
+  return undefined;
+}
+
+/** Pick the field to write back to. Prefer the one currently populated on the item
+ *  (so an item that has always used Effort keeps using Effort), otherwise fall back
+ *  to the type-based default. */
+export function writePointsFieldFor(
+  fields: Partial<Record<PointsFieldName, number | undefined>> & {
+    'System.WorkItemType'?: string;
+  },
+): PointsFieldName {
+  for (const f of POINTS_FIELDS) {
+    if (fields[f] != null) return f;
+  }
+  return pointsFieldForType(fields['System.WorkItemType'] ?? '');
+}

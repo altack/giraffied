@@ -15,6 +15,7 @@ import { cn } from '@/lib/cn';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 import { WorkItemModal } from './WorkItemModal';
+import { readPoints } from './workItemVisuals';
 
 const UNPARENTED_LANE_KEY = 'unparented';
 
@@ -148,7 +149,7 @@ export function BoardGrid({
       <SwimlaneBanner
         row={lane.row}
         totalTasks={lane.tasks.length}
-        points={lane.row.fields['Microsoft.VSTS.Scheduling.StoryPoints']}
+        points={readPoints(lane.row.fields)}
         collapsed={collapsed}
         onToggle={onToggle}
         onOpen={() => setSelectedId(lane.row.id)}

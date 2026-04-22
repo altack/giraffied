@@ -93,9 +93,7 @@ export function SwimlaneBanner({
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
       <span className="text-zinc-100 font-medium truncate">{f['System.Title']}</span>
-      <span className="text-[11px] text-zinc-600 shrink-0">
-        · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}
-      </span>
+      <span className="mono text-[11px] text-zinc-600 shrink-0">· {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} </span>
       {tags.length > 0 && (
         <div className="flex items-center gap-1 shrink-0">
           {tags.slice(0, 2).map((tag) => (
@@ -109,7 +107,7 @@ export function SwimlaneBanner({
         </div>
       )}
       {points != null && (
-        <span className="mono text-[11px] text-zinc-500 shrink-0">· {points} pts</span>
+        <span className="mono text-[11px] text-zinc-500 shrink-0">· {points}SP</span>
       )}
       {assignee?.displayName && (
         <span className="ml-1 shrink-0 flex">

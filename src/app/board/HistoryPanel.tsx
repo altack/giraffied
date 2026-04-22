@@ -119,6 +119,8 @@ function describeFieldChange(field: string, oldVal: unknown, newVal: unknown): s
     case 'System.Tags':
       return `updated tags (${newStr || '—'})`;
     case 'Microsoft.VSTS.Scheduling.StoryPoints':
+    case 'Microsoft.VSTS.Scheduling.Effort':
+    case 'Microsoft.VSTS.Scheduling.Size':
       return `set points to ${newStr || '—'}`;
     case 'Microsoft.VSTS.Scheduling.RemainingWork':
       return `remaining: ${newStr || '0'}h`;
