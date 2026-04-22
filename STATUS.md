@@ -1,6 +1,6 @@
 # Jirafied — Status
 
-Last worked on: **2026-04-22** (Phase 7 assignee filter + inline link actions)
+Last worked on: **2026-04-22** (Phase 8 create-task dialog + empty-parent-lane fix)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -108,6 +108,23 @@ Top-right facepile + popover picker. "Mine / tag / parent-story chips" from the 
 - New sibling `OpenLinkButton.tsx` — `ExternalLink` icon, opens the item in the native ADO UI via `window.open(url, '_blank', 'noopener,noreferrer')`. Shares `workItemUrl()` from `CopyLinkButton.tsx` so the two actions can't drift.
 - Same pair appears on subcards (`TaskCard`), parent swimlane banners (`SwimlaneHeader`), and in the modal title bar (moved out of `DraggableModal`'s `headerActions` slot and into the title node so the icons sit next to the type/id row). Both handlers `stopPropagation` + `preventDefault` so a click doesn't open the card, toggle the lane, or start a header drag.
 
+### Phase 8 — Create-task dialog ✅
+Originally planned as an inline "+ New task" row under every swimlane (Linear-style). Went with a dialog instead — richer input surface, one affordance instead of N per board, and the user wanted description + parent override available from the start. Inline row can still layer on later if rapid-typing-without-dialog becomes a felt need.
+
+- **Trigger**: `+` icon in the same hover-reveal cluster as copy/open on each `SwimlaneBanner` and `UnparentedBanner` (`CreateTaskButton.tsx`). First attempt placed it right-aligned/always-visible; the user asked for it clustered with the other lane actions and hover-only, which is what shipped.
+- **Dialog** (`CreateTaskDialog.tsx`): slim `DraggableModal`, 520×80vh max. Parent picker (searchable, full-width popover) · Assignee picker · Title input · plain-variant `DescriptionEditor` for optional description.
+- **ParentPicker** (`ParentPicker.tsx`): portal'd searchable dropdown whose popover width matches the trigger's `rect.width` (vs the `AssigneePicker`'s fixed 288px), so the field and its dropdown read as one element. "No parent (Everything else)" pinned on top. Search matches on title + type + `#id`. Only lists parents currently in the sprint (swimlane rows).
+- **AssigneePicker** extracted out of `WorkItemModal.tsx` into its own file (`AssigneePicker.tsx`) so both dialogs share one implementation. Behavior unchanged.
+- **Keyboard**: Enter in title saves + closes; **Cmd/Ctrl+Enter saves + resets title/description** while keeping parent + assignee — rapid-entry path for adding 5+ sibling tasks to the same Story. Esc cancels. Footer shows the shortcut hint.
+- **ADO side**: new `createWorkItem(projectId, type, fields, parentUrl?)` endpoint emits JSON-Patch `add` ops for fields plus a `/relations/-` op with `System.LinkTypes.Hierarchy-Reverse` when a parent is selected. Parent URL is taken from the parent's own `url` field (returned by any prior work-item fetch), so we don't have to reconstruct `https://dev.azure.com/{org}/_apis/wit/workItems/{id}`.
+- **Area path**: copied from the parent's `System.AreaPath` when a parent is selected; for "No parent", falls back to the team's default via a new `getTeamFieldValues` endpoint, cached in react-query for 1h so repeat "create another"s don't re-hit ADO.
+- **State is deliberately not sent** — ADO applies the team's default new-item state. Setting it explicitly would mean guessing the initial-state mapping per team and would break anyone with custom workflows. On success, `appendCreatedTask` picks the column whose `mappings.Task` matches the returned state (falling back to column 0 if nothing matches — rare, and the 30s poll will correct it).
+- **Cache**: `queryClient.setQueryData` grafts the new task into the right lane (or `unparented` when no parent). No `invalidateQueries` — matches the drag-reorder pattern, lets the 30s poll reconcile authoritative order later.
+- **Filter interaction**: the dialog's swimlane list comes from the un-filtered `baseData.swimlanes`, so picking a parent isn't constrained by an active assignee filter. New tasks that don't match the filter land in `baseData` correctly and simply aren't visible in the filtered view until the filter is cleared.
+
+### Empty-parent-lane fix ✅ (unrelated to Phase 8)
+`useTaskboard` was building `rowIdSet` only from children's parents, so a Bug/Story/Feature freshly added to the sprint with no Task children yet was invisible — nothing referenced it as a parent. Now we also walk the iteration's root relations (`source:null`) and add any root work item that isn't itself a card (not in `cardsById`) as a swimlane row. Teams using "Bugs as tasks" config are unaffected: those Bugs are cards, already in `cardsById`, so they flow through the existing `unparented` path. Empty lanes now match native ADO and pair naturally with the new `+` button — perfect entry point for adding the first Task to a brand-new Bug.
+
 ---
 
 ## Remaining
@@ -115,10 +132,8 @@ Top-right facepile + popover picker. "Mine / tag / parent-story chips" from the 
 ### Phase 7.5 — Additional filters (nice-to-have)
 - Tag and parent-story chips alongside the assignee filter if users ask for them — the current single-chip assignee filter already covers the 90% case.
 
-### Phase 8 — Inline create-task row
-- `+ New task` under each swimlane
-- `POST /wit/workitems/$Task` with `System.LinkTypes.Hierarchy-Reverse` to the Story
-- Enter submits, cursor stays for next entry
+### Phase 8.5 — Inline create-task row (nice-to-have)
+- Superseded by the dialog for most flows, but a true inline row (focus in place, Enter submits, cursor stays on the next line) could still beat the dialog for "I'm typing 10 tasks back-to-back and never need the description field". Revisit if the dialog's Cmd+Enter repeat-entry proves too heavy for that use case.
 
 ### Phase 9 — Polish
 - Keyboard nav (j/k/x/c)
