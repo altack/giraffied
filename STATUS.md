@@ -1,6 +1,6 @@
 # Jirafied — Status
 
-Last worked on: **2026-04-21** (Phase 6 shell reworked + ADO Comments)
+Last worked on: **2026-04-22** (Phase 7 assignee filter + inline link actions)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -92,13 +92,28 @@ Shell is now **fixed height** (no more jumping when tabs switch or content grows
 **Draggable modal**
 - `maxHeightVh` → `heightVh` + `fixedHeight` prop. When fixed, uses `height: Xvh` (not `max-height`) so the dialog is exactly that tall regardless of content. Body container is `min-h-0 overflow-hidden` so children own their scroll.
 
+### Phase 7 — Assignee filter ✅
+Top-right facepile + popover picker. "Mine / tag / parent-story chips" from the original plan collapsed down to a single assignee filter — covered the 90% case without the chip-bar complexity. Tag / parent filters can layer on later if needed.
+
+- **Trigger** lives at the right end of `TopBar`. Idle: `Users` icon + overlapping facepile of the top-4 most-loaded assignees (hairline `ring-1 ring-[var(--color-canvas)]` separators) + a `+N` counter. Active: the facepile collapses into a single indigo chip `[avatar] Name · count ×`. Click the chip to re-open the picker; click `×` to clear. No inline layout shift when switching between states.
+- **Popover** (`AssigneeFilter.tsx`) is portal'd, 260px, right-aligned to the trigger, with a calm `jfd-popover-enter` keyframe (140ms opacity+scale+lift). Search input auto-focused; rows show avatar · name · card count · ✓ when selected; arrow-key highlight + Enter picks; Esc / outside-click closes. Count-sorted desc, tiebreak alphabetical.
+- **Filter application** is view-only in `BoardGrid` via a `useMemo` projection: a lane is kept when the parent matches OR any child matches; subtasks only kept when they match; unparented filtered directly. The selected task for the modal resolves against the *unfiltered* base so opening a card and then toggling the filter doesn't close the dialog.
+- **Drag is disabled while filtered** (`Droppable.isDropDisabled` + `Draggable.isDragDisabled` threaded via a `dragDisabled` prop). `destination.index` would be relative to the filtered subset and wouldn't splice cleanly into the reorder call. Cursor switches from `cursor-grab` to `cursor-pointer` so the affordance doesn't lie.
+- **Auto-expand matching lanes** on filter activation, not on every refetch. New store method `expandLanes(contextKey, laneKeys)` removes only the named keys from the collapsed set (cleaning up empty entries) rather than wiping the whole context like `expandAll` does. Guarded by a `useRef` so the 30s poll doesn't fight a user who manually re-collapses a lane while the filter is still on. Unrelated lanes keep their user-set collapse state. No restore on clear — the user said not to.
+- **Self-clearing** — if the selected assignee disappears from the board (reassignment, refetch), the filter silently drops to avoid a "stuck empty" view.
+- **Data shape** — `assigneesOnBoard(data)` returns `BoardAssignee[]` (`{key, identity, count}`) sorted count-desc. The modal's assignee picker still gets a plain alphabetical `AdoIdentity[]` (derived from the counted shape in Board) so that picker's default ordering is unchanged.
+
+### Inline link actions ✅ (piggy-backed on Phase 7)
+- `CopyLinkButton` moved out of the task card's absolute top-right into an inline action group beside the title (revealed on hover / focus-within). Dropped the old `pr-5` title gutter.
+- New sibling `OpenLinkButton.tsx` — `ExternalLink` icon, opens the item in the native ADO UI via `window.open(url, '_blank', 'noopener,noreferrer')`. Shares `workItemUrl()` from `CopyLinkButton.tsx` so the two actions can't drift.
+- Same pair appears on subcards (`TaskCard`), parent swimlane banners (`SwimlaneHeader`), and in the modal title bar (moved out of `DraggableModal`'s `headerActions` slot and into the title node so the icons sit next to the type/id row). Both handlers `stopPropagation` + `preventDefault` so a click doesn't open the card, toggle the lane, or start a header drag.
+
 ---
 
 ## Remaining
 
-### Phase 7 — Filters
-- Mine / tag / parent-story chips (client-side filter over cached work items)
-- Linear-style keyboard-accessible chips
+### Phase 7.5 — Additional filters (nice-to-have)
+- Tag and parent-story chips alongside the assignee filter if users ask for them — the current single-chip assignee filter already covers the 90% case.
 
 ### Phase 8 — Inline create-task row
 - `+ New task` under each swimlane
