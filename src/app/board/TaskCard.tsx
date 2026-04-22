@@ -75,7 +75,7 @@ export function TaskCard({
         onClick={handleTitleClick}
         className={cn(
           'block bg-transparent border-0 p-0 m-0 text-left',
-          'text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 cursor-pointer',
+          'text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 pr-5 cursor-pointer',
           'hover:underline underline-offset-2 decoration-white/30',
           'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
         )}
