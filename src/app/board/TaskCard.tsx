@@ -4,6 +4,7 @@ import type { TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { cn } from '@/lib/cn';
 import { parseTags, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
+import { OpenLinkButton } from './OpenLinkButton';
 import { Avatar } from './Avatar';
 
 export function TaskCard({
@@ -72,21 +73,24 @@ export function TaskCard({
         isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-white/[0.08]',
       )}
     >
-      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
-        <CopyLinkButton workItemId={task.workItem.id} />
+      <div className="flex items-start gap-1.5">
+        <button
+          type="button"
+          onClick={handleTitleClick}
+          className={cn(
+            'min-w-0 block bg-transparent border-0 p-0 m-0 text-left',
+            'text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 cursor-pointer',
+            'hover:underline underline-offset-2 decoration-white/30',
+            'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
+          )}
+        >
+          {f['System.Title']}
+        </button>
+        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-100">
+          <CopyLinkButton workItemId={task.workItem.id} />
+          <OpenLinkButton workItemId={task.workItem.id} />
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={handleTitleClick}
-        className={cn(
-          'block bg-transparent border-0 p-0 m-0 text-left',
-          'text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 pr-5 cursor-pointer',
-          'hover:underline underline-offset-2 decoration-white/30',
-          'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
-        )}
-      >
-        {f['System.Title']}
-      </button>
       {tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {tags.slice(0, 3).map((tag) => (

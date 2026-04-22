@@ -4,6 +4,7 @@ import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
 import { parseTags, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
+import { OpenLinkButton } from './OpenLinkButton';
 import { Avatar } from './Avatar';
 
 function BannerShell({
@@ -126,8 +127,9 @@ export function SwimlaneBanner({
           <Avatar identity={assignee} size="xs" />
         </span>
       )}
-      <span className="ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
+      <span className="ml-0.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-100 shrink-0">
         <CopyLinkButton workItemId={row.id} />
+        <OpenLinkButton workItemId={row.id} />
       </span>
     </BannerShell>
   );

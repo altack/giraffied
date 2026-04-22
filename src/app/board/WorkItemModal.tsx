@@ -44,6 +44,7 @@ import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
 import { CommentsPanel } from './CommentsPanel';
 import { CopyLinkButton } from './CopyLinkButton';
+import { OpenLinkButton } from './OpenLinkButton';
 import { DescriptionField } from './DescriptionField';
 import { HistoryPanel } from './HistoryPanel';
 import { TimeContributors } from './TimeContributors';
@@ -344,12 +345,9 @@ export function WorkItemModal({
           <span className="text-zinc-400 shrink-0">{type.label}</span>
           <span className="text-zinc-700 shrink-0">·</span>
           <span className="mono text-zinc-500 shrink-0">#{task.workItem.id}</span>
-        </span>
-      }
-      headerActions={
-        <div data-no-drag className="mr-1">
           <CopyLinkButton workItemId={task.workItem.id} />
-        </div>
+          <OpenLinkButton workItemId={task.workItem.id} />
+        </span>
       }
       footer={
         <>
