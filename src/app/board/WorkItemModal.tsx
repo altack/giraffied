@@ -385,7 +385,7 @@ export function WorkItemModal({
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             rows={1}
             className={cn(
-              'w-full rounded-md px-3 py-2 resize-none',
+              'w-full field-sizing-content rounded-md px-3 py-2 resize-none',
               'text-[17px] leading-[1.3] font-medium text-zinc-50',
               'bg-transparent border border-transparent',
               'hover:bg-white/[0.02] hover:border-white/[0.04]',

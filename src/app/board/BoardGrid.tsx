@@ -169,7 +169,13 @@ export function BoardGrid({
     });
   }
 
-  const gridTemplateColumns = `repeat(${columns.length}, minmax(260px, 1fr))`;
+  // Tracks themselves use minmax(0, 1fr) so a wide card can't push its column
+  // past its share. The "no scrollbar until the viewport actually can't fit N
+  // reasonable columns" feel comes from minBoardWidth on the container below —
+  // not from the track min, which would let content drive overflow.
+  const gridTemplateColumns = `repeat(${columns.length}, minmax(0, 1fr))`;
+  const minBoardWidth =
+    columns.length * 260 + Math.max(0, columns.length - 1) * 12 + 40;
 
   const reorder = useMutation({
     mutationFn: async (vars: {
@@ -280,7 +286,7 @@ export function BoardGrid({
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="flex-1 overflow-auto">
-        <div className="min-w-max px-5 pt-3 pb-6 space-y-3">
+        <div className="px-5 pt-3 pb-6 space-y-3" style={{ minWidth: minBoardWidth }}>
           <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/75 backdrop-blur-lg border-b border-white/[0.05]">
             <div className="grid gap-3" style={{ gridTemplateColumns }}>
               {columns.map((col) => (
@@ -338,7 +344,7 @@ function ColumnHeader({ column, count }: { column: AdoTaskboardColumn; count: nu
   const done = isDoneColumn(column.name);
   return (
     <div className="flex items-center gap-2 px-1">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] pl-1 text-zinc-400">
         {column.name}
       </span>
       <span className="mono text-[11px] text-zinc-600">{count}</span>

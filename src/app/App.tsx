@@ -8,9 +8,11 @@ export default function App() {
   const state = useSettings();
 
   useEffect(() => {
-    if (hydrated) return;
-    const unsub = useSettings.persist.onFinishHydration(() => setHydrated(true));
-    return unsub;
+    if (useSettings.persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    return useSettings.persist.onFinishHydration(() => setHydrated(true));
   }, [hydrated]);
 
   if (!hydrated) {
