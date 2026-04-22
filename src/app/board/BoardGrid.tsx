@@ -83,12 +83,10 @@ export function BoardGrid({
         return {
           workItem: lane.row,
           taskboard: {
-            id: lane.row.id,
-            workItemType: lane.row.fields['System.WorkItemType'],
+            workItemId: lane.row.id,
             state: lane.row.fields['System.State'] ?? '',
             column: '',
             columnId: '',
-            order: 0,
           },
         };
       }

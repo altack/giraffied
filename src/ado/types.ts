@@ -68,13 +68,15 @@ export interface AdoTaskboardColumns {
   isValid?: boolean;
 }
 
+/** Shape ADO actually returns from `/work/taskboardworkitems/{iterationId}`:
+ *  `workItemId` (not `id`), `state`, `column`, `columnId`. No `workItemType`
+ *  and no `order` — cross-reference with the batched work-item details when
+ *  those are needed. */
 export interface AdoTaskboardWorkItem {
-  id: number;
-  workItemType: string;
+  workItemId: number;
   state: string;
   column: string;
   columnId: string;
-  order: number;
 }
 
 export interface AdoTaskboardWorkItems {

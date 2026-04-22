@@ -75,59 +75,6 @@ function isColumnsNotCustomizedError(e: unknown): boolean {
   );
 }
 
-const COLUMN_ORDER_HINTS: Record<string, number> = {
-  'to do': 0,
-  new: 0,
-  proposed: 0,
-  open: 0,
-  approved: 0,
-  backlog: 0,
-  ready: 0,
-  'in progress': 10,
-  active: 10,
-  doing: 10,
-  committed: 10,
-  started: 10,
-  'in review': 20,
-  'to review': 20,
-  review: 20,
-  'code review': 20,
-  'in testing': 30,
-  testing: 30,
-  'ready for test': 30,
-  'ready to test': 30,
-  resolved: 40,
-  done: 90,
-  closed: 90,
-  completed: 90,
-};
-
-function columnOrderHint(name: string): number {
-  return COLUMN_ORDER_HINTS[name.trim().toLowerCase()] ?? 50;
-}
-
-function deriveColumnsFromItems(items: AdoTaskboardWorkItem[]): AdoTaskboardColumn[] {
-  const byId = new Map<string, { name: string; sampleStates: Map<string, string> }>();
-  for (const it of items) {
-    let entry = byId.get(it.columnId);
-    if (!entry) {
-      entry = { name: it.column, sampleStates: new Map() };
-      byId.set(it.columnId, entry);
-    }
-    entry.sampleStates.set(it.workItemType, it.state);
-  }
-  const cols = [...byId.entries()].map(([id, { name, sampleStates }]) => ({
-    id,
-    name,
-    mappings: Object.fromEntries(sampleStates),
-  }));
-  cols.sort((a, b) => {
-    const diff = columnOrderHint(a.name) - columnOrderHint(b.name);
-    return diff !== 0 ? diff : a.name.localeCompare(b.name);
-  });
-  return cols;
-}
-
 /** One column per non-Removed state — matches what native ADO renders when the team
  *  has not customized taskboard columns. Category gives the primary sort order so
  *  Proposed (To Do) comes before InProgress before Resolved before Completed (Done). */
@@ -177,12 +124,10 @@ function synthesizeItemsFromWorkItems(
     const columnId = stateToColumnId.get(state);
     if (!columnId) continue;
     out.push({
-      id: wi.id,
-      workItemType: type,
+      workItemId: wi.id,
       state,
       column: colName.get(columnId) ?? '',
       columnId,
-      order: (wi.fields['Microsoft.VSTS.Common.StackRank'] as number | undefined) ?? wi.id,
     });
   }
   return out;
@@ -264,25 +209,38 @@ async function loadTaskboard(
     ids.add(r.target.id);
     if (r.source) ids.add(r.source.id);
   }
-  if (itemsResult) for (const t of itemsResult.value) ids.add(t.id);
+  if (itemsResult) for (const t of itemsResult.value) ids.add(t.workItemId);
 
-  log('fetching work items', { count: ids.size });
-  const workItems = await getWorkItemsBatch(projectId, [...ids]);
+  // ADO can emit relations with a null `target.id` (less often a null
+  // `source.id`) when an iteration references a work item that's been
+  // deleted, tombstoned, or lives in another project the caller can't
+  // resolve. The TS type says `number` but the JSON says otherwise; if we
+  // pass one through to /workitemsbatch the whole chunk 400s with
+  // "Error converting value {null} to type 'System.Int32'". Filter them out
+  // — a null id had no resolvable work item to fetch anyway.
+  const safeIds = [...ids].filter(
+    (x): x is number => typeof x === 'number' && Number.isFinite(x),
+  );
+  if (safeIds.length !== ids.size) {
+    log('dropped invalid work-item ids from batch', {
+      total: ids.size,
+      kept: safeIds.length,
+      dropped: ids.size - safeIds.length,
+    });
+  }
+  log('fetching work items', { count: safeIds.length });
+  const workItems = await getWorkItemsBatch(projectId, safeIds);
   log('work items fetched', { count: workItems.length });
 
   let columns: AdoTaskboardColumn[];
   let taskboardItems: AdoTaskboardWorkItem[];
   let columnsFallback = false;
 
-  if (itemsResult) {
+  if (itemsResult && columnsResult) {
+    // itemsResult is only fetched when columnsResult is truthy, so the pair
+    // travel together. No need for a column-derivation fallback here.
     taskboardItems = itemsResult.value;
-    if (columnsResult) {
-      columns = columnsResult.columns;
-    } else {
-      columns = deriveColumnsFromItems(itemsResult.value);
-      columnsFallback = true;
-      log('columns derived from items', { columns: columns.map((c) => c.name) });
-    }
+    columns = columnsResult.columns;
   } else {
     // No authoritative taskboard items — synthesize from Task type state categories.
     columnsFallback = true;
@@ -317,14 +275,14 @@ async function loadTaskboard(
   }
 
   const cardsById = new Map<number, AdoTaskboardWorkItem>();
-  for (const t of taskboardItems) cardsById.set(t.id, t);
+  for (const t of taskboardItems) cardsById.set(t.workItemId, t);
 
   const rowIdSet = new Set<number>();
   const unparentedIds: number[] = [];
   for (const card of taskboardItems) {
-    const parentId = parentOf.get(card.id);
+    const parentId = parentOf.get(card.workItemId);
     if (parentId != null && byId.has(parentId)) rowIdSet.add(parentId);
-    else unparentedIds.push(card.id);
+    else unparentedIds.push(card.workItemId);
   }
 
   const rowWorkItems = [...rowIdSet]
