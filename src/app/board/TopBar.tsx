@@ -1,7 +1,9 @@
 import { RefreshCw, Loader2, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AdoIteration } from '@/ado/types';
+import type { TaskboardData } from '@/ado/hooks/useTaskboard';
 import { ContextSwitcher } from './ContextSwitcher';
+import { OverallTracking } from './OverallTracking';
 
 function formatRange(iteration: AdoIteration | undefined): string | null {
   if (!iteration) return null;
@@ -18,6 +20,7 @@ export function TopBar({
   canToggleLanes,
   allLanesCollapsed,
   onToggleAllLanes,
+  board,
 }: {
   iteration: AdoIteration | undefined;
   onRefresh: () => void;
@@ -25,6 +28,7 @@ export function TopBar({
   canToggleLanes: boolean;
   allLanesCollapsed: boolean;
   onToggleAllLanes: () => void;
+  board: TaskboardData | undefined;
 }) {
   const range = formatRange(iteration);
 
@@ -45,6 +49,7 @@ export function TopBar({
         <ContextSwitcher />
       </div>
       <div className="flex items-center gap-0.5">
+        <OverallTracking board={board} />
         <Button
           variant="ghost"
           size="icon"

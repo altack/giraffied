@@ -58,6 +58,7 @@ export function Board() {
         canToggleLanes={laneKeys.length > 0}
         allLanesCollapsed={allCollapsed}
         onToggleAllLanes={toggleAllLanes}
+        board={board}
       />
       <BoardBody
         iterationLoading={iterationLoading}
