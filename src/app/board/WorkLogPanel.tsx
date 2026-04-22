@@ -99,9 +99,6 @@ export function WorkLogPanel({
                 className="flex items-center gap-2 text-[12px]"
               >
                 <Avatar identity={row.identity} size="sm" />
-                <span className="text-zinc-200 truncate max-w-[160px]">
-                  {row.identity?.displayName ?? 'Unknown'}
-                </span>
                 <div className="flex-1 h-1 rounded-full bg-white/[0.04] overflow-hidden">
                   <div
                     className="h-full bg-indigo-400/50"
@@ -119,7 +116,7 @@ export function WorkLogPanel({
         {entries.map((e, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-2 text-[12px]">
             <Avatar identity={e.by} size="sm" />
-            <span className="text-zinc-200 truncate max-w-[150px]">
+            <span className="text-zinc-200 truncate max-w-[180px]">
               {e.by?.displayName ?? 'Unknown'}
             </span>
             <span
