@@ -55,11 +55,16 @@ export function TaskCard({
       onClick={handleClick}
       className={cn(
         'group relative rounded-md px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing',
-        'bg-[#141418] border border-white/[0.06]',
-        'hover:bg-[#17171c] hover:border-white/[0.10]',
+        // Frosted-glass surface: a thin semi-transparent white film + backdrop
+        // blur. There's no hardcoded surface color, so whatever the cell's
+        // lane-hue gradient renders behind the card passes through — that's
+        // the "light coming from the background" without the card feeling
+        // see-through.
+        'bg-white/[0.035] backdrop-blur-md border border-white/[0.06]',
+        'hover:bg-white/[0.06] hover:border-white/[0.10]',
         'transition-colors duration-150',
         'lit-top',
-        isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-[#17171c]',
+        isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-white/[0.08]',
       )}
     >
       <div

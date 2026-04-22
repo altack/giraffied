@@ -52,6 +52,34 @@ export function workItemTypeStyle(type: string): WorkItemTypeVisual {
   }
 }
 
+/** RGB triplet (space-separated, for `rgb(var(--lane-hue) / X)`) keyed by
+ *  parent work-item type. Drives the subtle horizontal "lane thread" that ties
+ *  a swimlane's banner to its droppable cells. Values match the dot colors in
+ *  workItemTypeStyle — pre-converted to triplets so they can compose with
+ *  alpha at render time. Unknown / unparented lanes use a neutral white so
+ *  they look the same as the pre-hue design. */
+export function laneHueRgb(type: string | undefined): string {
+  switch (type) {
+    case 'Task':
+      return '245 158 11';
+    case 'Bug':
+      return '239 68 68';
+    case 'Story':
+    case 'Product Backlog Item':
+      return '56 189 248';
+    case 'Issue':
+      return '167 139 250';
+    case 'Feature':
+      return '192 132 252';
+    case 'Epic':
+      return '251 146 60';
+    case 'Sprint Goal':
+      return '52 211 153';
+    default:
+      return '255 255 255';
+  }
+}
+
 export function parseTags(tags: string | undefined): string[] {
   if (!tags) return [];
   return tags

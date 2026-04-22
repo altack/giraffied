@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { Check } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
@@ -15,7 +15,7 @@ import { cn } from '@/lib/cn';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 import { WorkItemModal } from './WorkItemModal';
-import { readPoints } from './workItemVisuals';
+import { laneHueRgb, readPoints } from './workItemVisuals';
 
 const UNPARENTED_LANE_KEY = 'unparented';
 
@@ -25,6 +25,9 @@ interface Row {
   laneKey: string;
   /** Parent work-item id for the ADO reorder call. 0 when the lane is "Everything else". */
   parentId: number;
+  /** RGB triplet exposed as `--lane-hue` on the lane wrapper — lets the banner
+   *  and each column cell share the same color thread at low alpha. */
+  hue: string;
   banner: (props: { collapsed: boolean; onToggle: () => void }) => ReactNode;
   tasks: TaskOnBoard[];
 }
@@ -145,6 +148,7 @@ export function BoardGrid({
     key: `lane-${lane.row.id}`,
     laneKey: String(lane.row.id),
     parentId: lane.row.id,
+    hue: laneHueRgb(lane.row.fields['System.WorkItemType']),
     banner: ({ collapsed, onToggle }) => (
       <SwimlaneBanner
         row={lane.row}
@@ -162,6 +166,7 @@ export function BoardGrid({
       key: 'lane-unparented',
       laneKey: UNPARENTED_LANE_KEY,
       parentId: 0,
+      hue: laneHueRgb(undefined),
       banner: ({ collapsed, onToggle }) => (
         <UnparentedBanner totalTasks={unparented.length} collapsed={collapsed} onToggle={onToggle} />
       ),
@@ -304,8 +309,16 @@ export function BoardGrid({
 
           {rows.map((row) => {
             const isCollapsed = collapsedSet.has(row.key);
+            // --lane-hue inherits to the banner and column cells below, so both
+            // can reference the same rgb() triplet at low alpha. The wrapper
+            // owns the intra-lane 12px spacing; the outer space-y-3 handles
+            // between-lane spacing.
             return (
-              <Fragment key={row.key}>
+              <div
+                key={row.key}
+                className="space-y-3"
+                style={{ '--lane-hue': row.hue } as CSSProperties}
+              >
                 {row.banner({ collapsed: isCollapsed, onToggle: () => toggle(row.key) })}
                 {!isCollapsed && (
                   <div className="grid gap-3" style={{ gridTemplateColumns }}>
@@ -320,7 +333,7 @@ export function BoardGrid({
                     ))}
                   </div>
                 )}
-              </Fragment>
+              </div>
             );
           })}
         </div>
@@ -374,8 +387,20 @@ function ColumnCell({
             'rounded-lg border p-1.5 space-y-1.5 min-h-[96px] transition-colors duration-100',
             snapshot.isDraggingOver
               ? 'bg-indigo-400/[0.05] border-indigo-400/25'
-              : 'bg-white/[0.015] border-white/[0.04]',
+              : 'border-white/[0.04]',
           )}
+          // At rest, each cell gets a gentle top-to-bottom bleed of the
+          // inherited --lane-hue — the horizontal "lane thread" that ties the
+          // row together. Dragover takes over with its own indigo fill (a
+          // cross-cutting action signal), so we skip the gradient there.
+          style={
+            snapshot.isDraggingOver
+              ? undefined
+              : {
+                  backgroundImage:
+                    'linear-gradient(180deg, rgb(var(--lane-hue) / 0.045), rgb(var(--lane-hue) / 0.012))',
+                }
+          }
         >
           {tasks.map((t, i) => (
             <Draggable

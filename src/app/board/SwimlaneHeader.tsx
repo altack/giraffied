@@ -41,6 +41,14 @@ function BannerShell({
         'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
         'focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40',
       )}
+      // Subtle horizontal bleed of the inherited --lane-hue — feels like the
+      // lane's color "emanates" from the banner and spills into the cells
+      // below. Fades out by ~32% so the banner's title/tags read against a
+      // near-neutral surface.
+      style={{
+        backgroundImage:
+          'linear-gradient(90deg, rgb(var(--lane-hue) / 0.07), transparent 32%)',
+      }}
     >
       <button
         type="button"
