@@ -285,6 +285,20 @@ async function loadTaskboard(
     else unparentedIds.push(card.workItemId);
   }
 
+  // Also include root items (Stories/Bugs/Features) that are in the sprint
+  // but have no child cards yet. Without this pass, a freshly-added Bug with
+  // no Tasks is invisible because nothing references it as a parent. Root
+  // items that *are* cards (team uses "Bugs as tasks" config) live in
+  // `cardsById` and are already handled via the unparented path above.
+  for (const r of relationsData.workItemRelations) {
+    if (r.source != null) continue;
+    const rootId = r.target.id;
+    if (typeof rootId !== 'number' || !Number.isFinite(rootId)) continue;
+    if (cardsById.has(rootId)) continue;
+    if (!byId.has(rootId)) continue;
+    rowIdSet.add(rootId);
+  }
+
   const rowWorkItems = [...rowIdSet]
     .map((id) => byId.get(id))
     .filter((x): x is AdoWorkItem => x != null)
