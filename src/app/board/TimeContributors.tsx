@@ -33,11 +33,14 @@ function round(n: number): number {
  *  `workitem-updates` query the Work Log tab uses (TanStack dedupes), so no
  *  extra ADO round-trip. Renders a stacked horizontal bar keyed by each
  *  contributor's avatar color plus a row of avatars; both surfaces reveal a
- *  full-name / hours / percentage tooltip on hover. Only positive deltas count
- *  toward a contributor's share — negative corrections (undoing an over-log)
- *  don't give anyone credit, and the grand total here therefore matches the
- *  sum of positive contributions, which can differ slightly from the sidebar
- *  "logged" readout on items that have had corrections. */
+ *  full-name / hours / percentage tooltip on hover.
+ *
+ *  Accounting matches the Work Log "By person" card: signed deltas are summed
+ *  per author (so a correction by the same user reduces their own total) and
+ *  the grand total is the last observed `CompletedWork` value, which equals
+ *  the field on the work item. A contributor whose net contribution is zero
+ *  or negative (rare — only happens when someone only ever logged negative
+ *  corrections) is dropped from the bar. */
 export function TimeContributors({
   workItemId,
   projectId,
@@ -61,15 +64,17 @@ export function TimeContributors({
     for (const upd of q.data ?? []) {
       const ch = upd.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'];
       if (!ch) continue;
-      const delta = round(numOrZero(ch.newValue) - numOrZero(ch.oldValue));
-      if (delta <= 0) continue;
+      const newV = numOrZero(ch.newValue);
+      const delta = round(newV - numOrZero(ch.oldValue));
+      if (delta === 0) continue;
+      grand = newV;
       const k = identityKey(upd.revisedBy);
       const cur = byKey.get(k) ?? { identity: upd.revisedBy, total: 0 };
       cur.total = round(cur.total + delta);
       byKey.set(k, cur);
-      grand = round(grand + delta);
     }
     const list: Contributor[] = [...byKey.entries()]
+      .filter(([, v]) => v.total > 0)
       .map(([key, v]) => ({
         key,
         identity: v.identity,
