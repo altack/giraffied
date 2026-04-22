@@ -12,11 +12,10 @@ import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   ChevronDown,
-  Clock,
+  Save,
   History as HistoryIcon,
   Loader2,
   MessageSquare,
-  Plus,
   Timer,
   UserX,
   X,
@@ -47,8 +46,8 @@ import { CommentsPanel } from './CommentsPanel';
 import { CopyLinkButton } from './CopyLinkButton';
 import { DescriptionField } from './DescriptionField';
 import { HistoryPanel } from './HistoryPanel';
+import { TimeContributors } from './TimeContributors';
 import { WorkLogPanel } from './WorkLogPanel';
-import { formatHours } from './timeFormat';
 import {
   readPoints,
   workItemTypeStyle,
@@ -58,6 +57,7 @@ import {
 } from './workItemVisuals';
 
 const NUMBER_RE = /^-?\d*(\.\d*)?$/;
+const POSITIVE_NUMBER_RE = /^\d*\.?\d*$/;
 
 type ActivityTab = 'comments' | 'worklog' | 'history';
 
@@ -331,7 +331,7 @@ export function WorkItemModal({
     <DraggableModal
       open={open}
       onClose={onClose}
-      width={940}
+      width={980}
       heightVh={88}
       fixedHeight
       title={
@@ -466,7 +466,7 @@ export function WorkItemModal({
           </div>
         </form>
 
-        <aside className="w-[280px] shrink-0 overflow-y-auto border-l border-white/[0.06] bg-white/[0.015] px-4 py-4 space-y-4">
+        <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-white/[0.06] bg-white/[0.015] px-4 py-4 space-y-4">
           <SidebarField label="Status">
             <div className="relative">
               <select
@@ -513,14 +513,21 @@ export function WorkItemModal({
             />
           </SidebarField>
           <SidebarField label="Time tracking">
-            <TimeTracking
-              workItemId={task.workItem.id}
-              projectId={projectId}
-              currentCompleted={
-                task.workItem.fields['Microsoft.VSTS.Scheduling.CompletedWork'] ?? 0
-              }
-              queryKey={queryKey}
-            />
+            <div className="space-y-3">
+              <TimeTracking
+                workItemId={task.workItem.id}
+                projectId={projectId}
+                currentCompleted={
+                  task.workItem.fields['Microsoft.VSTS.Scheduling.CompletedWork'] ?? 0
+                }
+                queryKey={queryKey}
+              />
+              <TimeContributors
+                workItemId={task.workItem.id}
+                projectId={projectId}
+                enabled={open}
+              />
+            </div>
           </SidebarField>
         </aside>
       </div>
@@ -901,49 +908,65 @@ function TimeTracking({
   function handleAdd(e: FormEvent) {
     e.preventDefault();
     const n = Number(input);
-    if (!Number.isFinite(n) || n === 0) {
-      setErr('Enter hours (positive or negative)');
+    if (!Number.isFinite(n) || n <= 0) {
+      setErr('Enter a positive number of hours');
       return;
     }
     setErr(null);
     log.mutate(n);
   }
 
+  const disabled = log.isPending || !input;
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[13px] text-zinc-200">
-        <Clock className="h-3.5 w-3.5 text-zinc-500" />
-        <span className="mono">{formatHours(currentCompleted)}</span>
-        <span className="text-zinc-600 text-[11px]">logged</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 text-[13px] mono">
-            +
-          </span>
-          <Input
-            inputMode="decimal"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAdd(e as unknown as FormEvent);
-            }}
-            placeholder="0"
-            className="h-7 pl-5 pr-2 text-[13px] mono"
-          />
-        </div>
-        <span className="text-[12px] text-zinc-600">h</span>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          onClick={handleAdd}
-          disabled={log.isPending || !input}
+      <form onSubmit={handleAdd} className="relative">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600 text-[13px] mono">
+          +
+        </span>
+        <Input
+          type="text"
+          inputMode="decimal"
+          pattern="[0-9]*\.?[0-9]*"
+          value={input}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '' || POSITIVE_NUMBER_RE.test(v)) setInput(v);
+          }}
+          onKeyDown={(e) => {
+            // Block the 'e', 'E', '+', '-' keys that type="number" normally allows
+            // through even in modern browsers with inputMode decimal.
+            if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+              e.preventDefault();
+            }
+          }}
+          placeholder="0"
+          className="h-8 pl-6 pr-14 text-[13px] mono"
+        />
+        <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 text-zinc-600 text-[11px]">
+          h
+        </span>
+        <button
+          type="submit"
+          title="Log"
+          aria-label="Log time"
+          disabled={disabled}
+          className={cn(
+            'absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center',
+            'h-6 w-7 rounded',
+            'bg-white/[0.08] text-zinc-100 lit-top',
+            'hover:bg-white/[0.14] hover:text-white',
+            'disabled:opacity-40 disabled:hover:bg-white/[0.08]',
+            'transition-colors',
+          )}
         >
-          {log.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          Log
-        </Button>
-      </div>
+          {log.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </form>
       {err && <div className="text-[11px] text-red-300/80 mono">{err}</div>}
     </div>
   );
