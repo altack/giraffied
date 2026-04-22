@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import { DescriptionEditor } from './DescriptionEditor';
 
@@ -7,10 +7,11 @@ import { DescriptionEditor } from './DescriptionEditor';
  *  tables, images, inline styles, underline, h2+, etc.) so keeping view-mode
  *  pure-HTML preserves ADO's original fidelity until an actual edit starts.
  *
- *  Uncontrolled edit-mode toggle: parent controls `value`; this component flips
- *  itself between view/edit on click and Escape. Blur does not exit edit mode —
- *  users routinely interact with the floating toolbar, which causes intermediate
- *  blurs that would be disruptive to bail on. */
+ *  Once in edit mode we stay there for the rest of the modal's life — clicking
+ *  outside or pressing Escape does **not** bail back to view mode. Early iterations
+ *  did, but Trix's floating toolbar causes routine intermediate blurs that made
+ *  that feel hostile (click a formatting button, editor unmounts). Modal close
+ *  resets this state since the whole subtree remounts on the next open. */
 export function DescriptionField({
   value,
   onChange,
@@ -21,45 +22,16 @@ export function DescriptionField({
   placeholder?: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  // Collapse back to view-mode on Escape when focus is inside our subtree.
-  useEffect(() => {
-    if (!editing) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (!wrapRef.current?.contains(document.activeElement)) return;
-      e.stopPropagation();
-      setEditing(false);
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [editing]);
-
-  // Click-outside exits edit mode. We don't use blur because the Trix toolbar is
-  // inside the same wrapper, so intermediate blurs during formatting are normal.
-  useEffect(() => {
-    if (!editing) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current) return;
-      if (wrapRef.current.contains(e.target as Node)) return;
-      setEditing(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [editing]);
 
   if (editing) {
     return (
-      <div ref={wrapRef}>
-        <DescriptionEditor
-          value={value}
-          onChange={onChange}
-          variant="default"
-          placeholder={placeholder}
-          autoFocus
-        />
-      </div>
+      <DescriptionEditor
+        value={value}
+        onChange={onChange}
+        variant="default"
+        placeholder={placeholder}
+        autoFocus
+      />
     );
   }
 
@@ -67,7 +39,6 @@ export function DescriptionField({
 
   return (
     <div
-      ref={wrapRef}
       role="button"
       tabIndex={0}
       onClick={() => setEditing(true)}

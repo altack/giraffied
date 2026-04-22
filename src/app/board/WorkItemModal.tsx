@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   ChevronDown,
@@ -633,6 +635,9 @@ function TagsEditor({
 
 /* ── Assignee ─────────────────────────────────────────────────────────────── */
 
+const POPOVER_WIDTH = 288; // w-72
+const POPOVER_MAX_HEIGHT = 320; // input + max-h-64 list + paddings
+
 function AssigneePicker({
   value,
   onChange,
@@ -645,12 +650,37 @@ function AssigneePicker({
   const { data: members, isLoading: membersLoading, isError } = useTeamMembers();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  // Trigger's viewport rect — drives the portaled popover's `position: fixed`
+  // top/left. We portal to `document.body` so the popover escapes the sidebar's
+  // `overflow-y-auto` clip and the modal's `backdrop-filter` stacking context.
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  // Keep the rect in sync with the trigger while the popover is open — the
+  // sidebar can scroll under us, and the modal can be dragged. Capture-phase
+  // scroll listener catches scrolls on any ancestor.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (btnRef.current) setRect(btnRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -685,11 +715,34 @@ function AssigneePicker({
     [onChange],
   );
 
+  function toggle() {
+    if (!open && btnRef.current) {
+      // Capture rect synchronously so the first portal render already has a
+      // position — avoids a one-frame flash where the popover renders at 0,0.
+      setRect(btnRef.current.getBoundingClientRect());
+    }
+    setOpen((o) => !o);
+  }
+
+  // Flip-up if there's not enough room below; clamp left so we don't go
+  // off-screen on narrow viewports. Right-edge aligned to the trigger by default.
+  const popoverStyle: React.CSSProperties | null = rect
+    ? (() => {
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const flipUp = spaceBelow < POPOVER_MAX_HEIGHT && rect.top > spaceBelow;
+        const top = flipUp ? Math.max(8, rect.top - POPOVER_MAX_HEIGHT - 4) : rect.bottom + 4;
+        const rightAligned = rect.right - POPOVER_WIDTH;
+        const left = Math.max(8, Math.min(rightAligned, window.innerWidth - POPOVER_WIDTH - 8));
+        return { position: 'fixed', top, left, width: POPOVER_WIDTH };
+      })()
+    : null;
+
   return (
-    <div ref={wrapRef} className="relative">
+    <div className="relative">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className={cn(
           'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px] text-left',
           'bg-white/[0.03] border border-white/[0.08] text-zinc-100',
@@ -702,10 +755,13 @@ function AssigneePicker({
         <span className="truncate flex-1">{value?.displayName ?? 'Unassigned'}</span>
         <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
       </button>
-      {open && (
+      {open && popoverStyle && createPortal(
         <div
+          ref={popRef}
           data-no-drag
-          className="absolute z-10 mt-1 right-0 w-72 rounded-md border border-white/[0.08] bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+          // z-[60] > modal's z-50, so the popover floats above the dialog.
+          style={{ ...popoverStyle, zIndex: 60 }}
+          className="rounded-md border border-white/[0.08] bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
         >
           <div className="p-1.5 border-b border-white/[0.06]">
             <Input
@@ -768,7 +824,8 @@ function AssigneePicker({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

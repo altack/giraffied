@@ -25,13 +25,14 @@ export function TaskCard({
 
   const isDragging = dragSnapshot?.isDragging ?? false;
 
-  // hello-pangea/dnd lets the click through when the pointer didn't move past its drag
-  // threshold. We open the modal on click; CopyLinkButton stops propagation, so it
-  // doesn't double-trigger.
-  const handleClick = (e: MouseEvent<HTMLElement>) => {
+  // Only the title opens the modal — the rest of the card is "empty" to clicks
+  // (it still receives drag gestures via dragHandleProps on the article). This
+  // matches the banner below, where clicking the title opens the parent and
+  // clicking elsewhere collapses.
+  const handleTitleClick = (e: MouseEvent<HTMLElement>) => {
     if (!onOpen) return;
     if (dragSnapshot?.isDragging) return;
-    if ((e.target as HTMLElement).closest('[data-no-open]')) return;
+    e.stopPropagation();
     onOpen(task);
   };
 
@@ -52,7 +53,6 @@ export function TaskCard({
       {...(dragProvided?.draggableProps ?? {})}
       {...(dragProvided?.dragHandleProps ?? {})}
       style={style}
-      onClick={handleClick}
       className={cn(
         'group relative rounded-md px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing',
         // Frosted-glass surface: a thin semi-transparent white film + backdrop
@@ -67,15 +67,21 @@ export function TaskCard({
         isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-white/[0.08]',
       )}
     >
-      <div
-        data-no-open
-        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
-      >
+      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
         <CopyLinkButton workItemId={task.workItem.id} />
       </div>
-      <div className="text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 pr-5">
+      <button
+        type="button"
+        onClick={handleTitleClick}
+        className={cn(
+          'block w-full bg-transparent border-0 p-0 m-0 text-left',
+          'text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3 pr-5 cursor-pointer',
+          'hover:underline underline-offset-2 decoration-white/30',
+          'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
+        )}
+      >
         {f['System.Title']}
-      </div>
+      </button>
       {tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {tags.slice(0, 3).map((tag) => (

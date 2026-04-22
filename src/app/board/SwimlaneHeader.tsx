@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
@@ -9,37 +9,22 @@ import { Avatar } from './Avatar';
 function BannerShell({
   collapsed,
   onToggle,
-  onOpen,
   children,
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  /** Optional: primary click action. When provided, clicking the banner opens
-   *  the work item (chevron still toggles collapse). When absent, the whole
-   *  banner toggles collapse — used by the unparented banner which has no
-   *  work item to open. */
-  onOpen?: () => void;
   children: ReactNode;
 }) {
-  const primary = onOpen ?? onToggle;
-  function handleKey(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      primary();
-    }
-  }
-
+  // Clicking anywhere on the banner background toggles collapse. Opening the
+  // work item is reserved for the title button in SwimlaneBanner (which stops
+  // propagation). Keyboard flow: tab to the chevron (toggle) → tab to the title
+  // button (open modal) → tab to the copy-link button.
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={primary}
-      onKeyDown={handleKey}
-      aria-expanded={!collapsed}
+      onClick={onToggle}
       className={cn(
         'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left cursor-pointer',
         'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
-        'focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40',
       )}
       // Subtle horizontal bleed of the inherited --lane-hue — feels like the
       // lane's color "emanates" from the banner and spills into the cells
@@ -53,11 +38,12 @@ function BannerShell({
       <button
         type="button"
         aria-label={collapsed ? 'Expand' : 'Collapse'}
+        aria-expanded={!collapsed}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
-        className="inline-flex items-center justify-center rounded p-0.5 text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
+        className="inline-flex items-center justify-center rounded p-0.5 text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40 transition-colors"
       >
         <ChevronDown
           className={cn(
@@ -92,7 +78,7 @@ export function SwimlaneBanner({
   const assignee = f['System.AssignedTo'];
 
   return (
-    <BannerShell collapsed={collapsed} onToggle={onToggle} onOpen={onOpen}>
+    <BannerShell collapsed={collapsed} onToggle={onToggle}>
       <span
         className="h-1.5 w-1.5 rounded-full shrink-0"
         style={{ backgroundColor: type.dot }}
@@ -100,7 +86,25 @@ export function SwimlaneBanner({
       />
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
-      <span className="text-zinc-100 font-medium truncate">{f['System.Title']}</span>
+      <button
+        type="button"
+        onClick={
+          onOpen
+            ? (e) => {
+                e.stopPropagation();
+                onOpen();
+              }
+            : undefined
+        }
+        className={cn(
+          'min-w-0 truncate bg-transparent border-0 p-0 m-0 text-left',
+          'text-zinc-100 font-medium',
+          onOpen && 'cursor-pointer hover:underline underline-offset-2 decoration-white/30',
+          'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
+        )}
+      >
+        {f['System.Title']}
+      </button>
       <span className="mono text-[11px] text-zinc-600 shrink-0">· {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} </span>
       {tags.length > 0 && (
         <div className="flex items-center gap-1 shrink-0">
