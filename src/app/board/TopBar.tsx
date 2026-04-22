@@ -4,6 +4,8 @@ import type { AdoIteration } from '@/ado/types';
 import type { TaskboardData } from '@/ado/hooks/useTaskboard';
 import { ContextSwitcher } from './ContextSwitcher';
 import { OverallTracking } from './OverallTracking';
+import { AssigneeFilter } from './AssigneeFilter';
+import type { BoardAssignee } from './assigneesOnBoard';
 
 function formatRange(iteration: AdoIteration | undefined): string | null {
   if (!iteration) return null;
@@ -21,6 +23,9 @@ export function TopBar({
   allLanesCollapsed,
   onToggleAllLanes,
   board,
+  assignees,
+  assigneeFilter,
+  onAssigneeFilter,
 }: {
   iteration: AdoIteration | undefined;
   onRefresh: () => void;
@@ -29,6 +34,9 @@ export function TopBar({
   allLanesCollapsed: boolean;
   onToggleAllLanes: () => void;
   board: TaskboardData | undefined;
+  assignees: BoardAssignee[];
+  assigneeFilter: string | null;
+  onAssigneeFilter: (key: string | null) => void;
 }) {
   const range = formatRange(iteration);
 
@@ -48,29 +56,36 @@ export function TopBar({
         <Sep />
         <ContextSwitcher />
       </div>
-      <div className="flex items-center gap-0.5">
-        <OverallTracking board={board} />
-        <Button
-          variant="ghost"
-          size="icon"
-          title={allLanesCollapsed ? 'Expand all lanes' : 'Collapse all lanes'}
-          onClick={onToggleAllLanes}
-          disabled={!canToggleLanes}
-          aria-pressed={allLanesCollapsed}
-        >
-          {allLanesCollapsed ? (
-            <ChevronsUpDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronsDownUp className="h-3.5 w-3.5" />
-          )}
-        </Button>
-        <Button variant="ghost" size="icon" title="Refresh" onClick={onRefresh} disabled={isFetching}>
-          {isFetching ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-        </Button>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            title={allLanesCollapsed ? 'Expand all lanes' : 'Collapse all lanes'}
+            onClick={onToggleAllLanes}
+            disabled={!canToggleLanes}
+            aria-pressed={allLanesCollapsed}
+          >
+            {allLanesCollapsed ? (
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronsDownUp className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button variant="ghost" size="icon" title="Refresh" onClick={onRefresh} disabled={isFetching}>
+            {isFetching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <OverallTracking board={board} />
+        </div>
+        <AssigneeFilter
+            assignees={assignees}
+            selectedKey={assigneeFilter}
+            onSelect={onAssigneeFilter}
+        />
       </div>
     </header>
   );

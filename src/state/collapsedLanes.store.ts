@@ -10,6 +10,7 @@ interface CollapsedLanesState {
   byContext: Record<string, string[]>;
   toggle: (contextKey: string, laneKey: string) => void;
   expandAll: (contextKey: string) => void;
+  expandLanes: (contextKey: string, laneKeys: string[]) => void;
   collapseAll: (contextKey: string, laneKeys: string[]) => void;
 }
 
@@ -32,6 +33,19 @@ export const useCollapsedLanes = create<CollapsedLanesState>()(
           if (!state.byContext[contextKey]) return state;
           const { [contextKey]: _, ...rest } = state.byContext;
           return { byContext: rest };
+        }),
+      expandLanes: (contextKey, laneKeys) =>
+        set((state) => {
+          const current = state.byContext[contextKey];
+          if (!current || current.length === 0) return state;
+          const toExpand = new Set(laneKeys);
+          const next = current.filter((k) => !toExpand.has(k));
+          if (next.length === current.length) return state;
+          if (next.length === 0) {
+            const { [contextKey]: _, ...rest } = state.byContext;
+            return { byContext: rest };
+          }
+          return { byContext: { ...state.byContext, [contextKey]: next } };
         }),
       collapseAll: (contextKey, laneKeys) =>
         set((state) => ({

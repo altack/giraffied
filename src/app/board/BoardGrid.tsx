@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { Check } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
+import type { Swimlane, TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import type { AdoIdentity, AdoTaskboardColumn } from '@/ado/types';
 import {
   patchWorkItemField,
@@ -15,6 +15,7 @@ import { cn } from '@/lib/cn';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 import { WorkItemModal } from './WorkItemModal';
+import { assigneeKey } from './assigneesOnBoard';
 import { laneHueRgb, readPoints } from './workItemVisuals';
 
 const UNPARENTED_LANE_KEY = 'unparented';
@@ -58,9 +59,13 @@ function parseDraggableId(id: string): number | null {
 export function BoardGrid({
   data,
   iterationId,
+  assignees,
+  assigneeFilter,
 }: {
   data: TaskboardData;
   iterationId: string;
+  assignees: AdoIdentity[];
+  assigneeFilter: string | null;
 }) {
   // Local overlay shadows `data` during the drop animation window. We update it
   // synchronously via flushSync so the library reads the post-drop DOM correctly
@@ -68,12 +73,44 @@ export function BoardGrid({
   // the overlay and the query cache takes over again.
   const [overlay, setOverlay] = useState<TaskboardData | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const displayData = overlay ?? data;
+  const baseData = overlay ?? data;
+
+  // Apply the assignee filter as a view-only projection. A lane is included
+  // when the parent matches OR any child matches; children are only kept if
+  // they match. Unparented cards are filtered directly. Drag is disabled
+  // while filtered (see `isFiltered` below) — destination.index would be
+  // relative to the filtered subset and wouldn't map cleanly to the full
+  // task array the reorder call needs.
+  const isFiltered = assigneeFilter != null;
+  const displayData = useMemo<TaskboardData>(() => {
+    if (!isFiltered) return baseData;
+    const match = (identity: AdoIdentity | undefined) =>
+      assigneeKey(identity) === assigneeFilter;
+    const nextSwimlanes: Swimlane[] = [];
+    for (const lane of baseData.swimlanes) {
+      const parentMatches = match(lane.row.fields['System.AssignedTo']);
+      const keptTasks = lane.tasks.filter((t) =>
+        match(t.workItem.fields['System.AssignedTo']),
+      );
+      if (parentMatches || keptTasks.length > 0) {
+        nextSwimlanes.push({ ...lane, tasks: keptTasks });
+      }
+    }
+    const nextUnparented = baseData.unparented.filter((t) =>
+      match(t.workItem.fields['System.AssignedTo']),
+    );
+    return { ...baseData, swimlanes: nextSwimlanes, unparented: nextUnparented };
+  }, [baseData, assigneeFilter, isFiltered]);
+
   const { columns, swimlanes, unparented } = displayData;
 
+  // Resolve the selected task against the UNFILTERED baseData, not the
+  // filtered view — otherwise opening a card and then toggling the filter
+  // would close the modal whenever the card doesn't match. The useEffect
+  // below still auto-closes when a refetch genuinely removes the card.
   const selectedTask = useMemo<TaskOnBoard | null>(() => {
     if (selectedId == null) return null;
-    for (const lane of swimlanes) {
+    for (const lane of baseData.swimlanes) {
       if (lane.row.id === selectedId) {
         // Swimlane rows (Story/Feature/PBI) are work items that *host* child
         // cards but don't live on the taskboard themselves. We synthesize a
@@ -93,33 +130,13 @@ export function BoardGrid({
       const t = lane.tasks.find((x) => x.workItem.id === selectedId);
       if (t) return t;
     }
-    return unparented.find((x) => x.workItem.id === selectedId) ?? null;
-  }, [selectedId, swimlanes, unparented]);
+    return baseData.unparented.find((x) => x.workItem.id === selectedId) ?? null;
+  }, [selectedId, baseData]);
 
   // If the selected task disappears (refetch removed it from the sprint), close.
   useEffect(() => {
     if (selectedId != null && !selectedTask) setSelectedId(null);
   }, [selectedId, selectedTask]);
-
-  // Unique assignees currently on the board (across child cards AND swimlane rows).
-  // Used as the default list in the assignee picker — much more accurate than
-  // /teams/{id}/members, which can include retired or unrelated members.
-  const boardAssignees = useMemo<AdoIdentity[]>(() => {
-    const seen = new Map<string, AdoIdentity>();
-    const collect = (a: AdoIdentity | undefined) => {
-      if (!a?.displayName) return;
-      const key = a.uniqueName ?? a.id ?? a.displayName;
-      if (!seen.has(key)) seen.set(key, a);
-    };
-    for (const lane of swimlanes) {
-      collect(lane.row.fields['System.AssignedTo']);
-      for (const t of lane.tasks) collect(t.workItem.fields['System.AssignedTo']);
-    }
-    for (const t of unparented) collect(t.workItem.fields['System.AssignedTo']);
-    return [...seen.values()].sort((a, b) =>
-      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }),
-    );
-  }, [swimlanes, unparented]);
 
   const org = useSettings((s) => s.org);
   const projectId = useSettings((s) => s.projectId);
@@ -327,6 +344,7 @@ export function BoardGrid({
                         type={`lane-${row.laneKey}`}
                         tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
                         onOpen={(t) => setSelectedId(t.workItem.id)}
+                        dragDisabled={isFiltered}
                       />
                     ))}
                   </div>
@@ -344,7 +362,7 @@ export function BoardGrid({
           open
           onClose={() => setSelectedId(null)}
           iterationId={iterationId}
-          boardAssignees={boardAssignees}
+          boardAssignees={assignees}
         />
       )}
     </DragDropContext>
@@ -369,14 +387,16 @@ function ColumnCell({
   type,
   tasks,
   onOpen,
+  dragDisabled,
 }: {
   droppableId: string;
   type: string;
   tasks: TaskOnBoard[];
   onOpen: (task: TaskOnBoard) => void;
+  dragDisabled: boolean;
 }) {
   return (
-    <Droppable droppableId={droppableId} type={type}>
+    <Droppable droppableId={droppableId} type={type} isDropDisabled={dragDisabled}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
@@ -405,6 +425,7 @@ function ColumnCell({
               key={t.workItem.id}
               draggableId={draggableIdFor(t.workItem.id)}
               index={i}
+              isDragDisabled={dragDisabled}
             >
               {(dragProvided, dragSnapshot) => (
                 <TaskCard
@@ -412,6 +433,7 @@ function ColumnCell({
                   dragProvided={dragProvided}
                   dragSnapshot={dragSnapshot}
                   onOpen={onOpen}
+                  dragDisabled={dragDisabled}
                 />
               )}
             </Draggable>

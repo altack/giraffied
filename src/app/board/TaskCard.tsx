@@ -11,11 +11,13 @@ export function TaskCard({
   dragProvided,
   dragSnapshot,
   onOpen,
+  dragDisabled,
 }: {
   task: TaskOnBoard;
   dragProvided?: DraggableProvided;
   dragSnapshot?: DraggableStateSnapshot;
   onOpen?: (task: TaskOnBoard) => void;
+  dragDisabled?: boolean;
 }) {
   const f = task.workItem.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
@@ -54,7 +56,10 @@ export function TaskCard({
       {...(dragProvided?.dragHandleProps ?? {})}
       style={style}
       className={cn(
-        'group relative rounded-md px-3 py-2.5 text-sm cursor-grab active:cursor-grabbing',
+        'group relative rounded-md px-3 py-2.5 text-sm',
+        dragDisabled
+          ? 'cursor-pointer'
+          : 'cursor-grab active:cursor-grabbing',
         // Frosted-glass surface: a thin semi-transparent white film + backdrop
         // blur. There's no hardcoded surface color, so whatever the cell's
         // lane-hue gradient renders behind the card passes through — that's
