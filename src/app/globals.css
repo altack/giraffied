@@ -385,6 +385,20 @@ body {
 .jfd-modal-in  { animation: jfd-modal-in  180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .jfd-modal-out { animation: jfd-modal-out 140ms cubic-bezier(0.4, 0, 1, 1)     both; }
 
+/* Search overlay enter/exit — snappier than the work-item modal (users hit
+ * ⌘K rapidly and expect the panel there *now*) with a more pronounced lift
+ * so the ascent reads cleanly against the ambient glow behind it. */
+@keyframes jfd-search-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.975); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@keyframes jfd-search-out {
+  from { opacity: 1; transform: translateY(0)   scale(1); }
+  to   { opacity: 0; transform: translateY(10px) scale(0.975); }
+}
+.jfd-search-in  { animation: jfd-search-in  130ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.jfd-search-out { animation: jfd-search-out 100ms cubic-bezier(0.4, 0, 1, 1)     both; }
+
 /* Tab content cross-fade. Tiny translate so the swap reads as a reveal rather
  * than a flash. */
 @keyframes jfd-tab-in {

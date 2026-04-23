@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Heart, Loader2, Search, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import {
   useWorkItemSearch,
@@ -61,7 +61,7 @@ export function SearchOverlay({
 
   // Deferred unmount so the exit animation has time to play. `visible` stays
   // true through the exit; `exiting=true` swaps the enter keyframe for the
-  // exit keyframe. Timeout matches `.jfd-modal-out` (140ms) so we unmount
+  // exit keyframe. Timeout matches `.jfd-search-out` (100ms) so we unmount
   // right after it finishes.
   const [visible, setVisible] = useState(open);
   const [exiting, setExiting] = useState(false);
@@ -74,7 +74,7 @@ export function SearchOverlay({
       const t = setTimeout(() => {
         setVisible(false);
         setExiting(false);
-      }, 160);
+      }, 110);
       return () => clearTimeout(t);
     }
   }, [open, visible]);
@@ -239,7 +239,7 @@ export function SearchOverlay({
           // Ambient indigo glow outside the panel + deep drop shadow below.
           'shadow-[0_28px_80px_-16px_rgb(0_0_0/0.7),0_0_0_1px_rgb(129_140_248/0.06),0_0_60px_-10px_rgb(129_140_248/0.18)]',
           'flex flex-col',
-          exiting ? 'jfd-modal-out' : 'jfd-modal-in',
+          exiting ? 'jfd-search-out' : 'jfd-search-in',
         )}
         style={{ maxHeight: 'calc(100vh - 18vh)' }}
       >
@@ -516,22 +516,6 @@ function SearchFooter() {
         </span>
         <span className="text-zinc-700 select-none">·</span>
         <span className="mono text-[10.5px] text-zinc-600">© {year}</span>
-      </div>
-      <div className="flex items-center gap-1 text-[10.5px] text-zinc-500">
-        <span>Made by</span>
-        <a
-          href="https://altack.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-zinc-300 hover:text-zinc-100 transition-colors"
-        >
-          Altack
-        </a>
-        <span>with</span>
-        <Heart
-          className="h-3 w-3 text-rose-400/90 fill-rose-400/70"
-          aria-label="love"
-        />
       </div>
     </div>
   );
