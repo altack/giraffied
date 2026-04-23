@@ -2,6 +2,7 @@ import { ado, adoPaged } from './client';
 import type {
   AdoCommentList,
   AdoConnectionData,
+  AdoFieldDefinition,
   AdoIteration,
   AdoIterationWorkItems,
   AdoList,
@@ -111,6 +112,32 @@ export function getWorkItemType(
 ): Promise<AdoWorkItemType> {
   return ado<AdoWorkItemType>({
     path: `/${encodeURIComponent(projectId)}/_apis/wit/workitemtypes/${encodeURIComponent(typeName)}`,
+  });
+}
+
+/** GET all field definitions for a work-item type, with pick-list options expanded.
+ *  Used to render Bug-only custom fields (BugHotfix / Environment / RCA) — we match
+ *  fields by display name (`name`) and read `referenceName` + `allowedValues` back.
+ *  Cache aggressively; field schemas change rarely. */
+export async function getWorkItemTypeFields(
+  projectId: string,
+  typeName: string,
+): Promise<AdoFieldDefinition[]> {
+  const res = await ado<AdoList<AdoFieldDefinition>>({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitemtypes/${encodeURIComponent(typeName)}/fields?$expand=allowedValues`,
+  });
+  return res.value;
+}
+
+/** GET a single work item with all fields. The taskboard batch fetch only asks for
+ *  a fixed field set (see DEFAULT_WORKITEM_FIELDS) which doesn't include custom fields
+ *  like Bug/Hotfix or Environment, so the modal fires this on open to fill them in. */
+export function getWorkItem(
+  projectId: string,
+  id: number,
+): Promise<AdoWorkItem> {
+  return ado<AdoWorkItem>({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}`,
   });
 }
 

@@ -113,6 +113,7 @@ export interface AdoWorkItemFields {
   'System.Rev'?: number;
   'System.Description'?: string;
   'System.AssignedTo'?: AdoIdentity;
+  'System.CreatedBy'?: AdoIdentity;
   'System.Tags'?: string;
   'System.IterationPath'?: string;
   'System.AreaPath'?: string;
@@ -160,6 +161,7 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'System.Rev',
   'System.Description',
   'System.AssignedTo',
+  'System.CreatedBy',
   'System.Tags',
   'System.IterationPath',
   'System.AreaPath',
@@ -170,6 +172,20 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'Microsoft.VSTS.Scheduling.CompletedWork',
   'Microsoft.VSTS.Common.StackRank',
 ] as const;
+
+/** One entry from `GET /{project}/_apis/wit/workitemtypes/{type}/fields?$expand=allowedValues`.
+ *  `name` is the display name shown in ADO; `referenceName` is the API id we PATCH against
+ *  (e.g. `Custom.DigitalPlatformsBugHotfix`). `allowedValues` is populated for pick-list
+ *  fields when we pass `$expand=allowedValues`. */
+export interface AdoFieldDefinition {
+  referenceName: string;
+  name: string;
+  helpText?: string;
+  alwaysRequired?: boolean;
+  defaultValue?: unknown;
+  allowedValues?: string[];
+  url?: string;
+}
 
 /** A single work-item comment from `GET /wit/workItems/{id}/comments`.
  *  `text` is HTML when the list was fetched with `format=html` (our default). */

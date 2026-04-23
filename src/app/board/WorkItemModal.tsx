@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -27,20 +28,26 @@ import {
   patchWorkItemFields,
 } from '@/ado/endpoints';
 import type {
+  AdoFieldDefinition,
   AdoIdentity,
   AdoTaskboardColumn,
   AdoWorkItem,
 } from '@/ado/types';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { useComments } from '@/ado/hooks/useComments';
+import { useWorkItemFull } from '@/ado/hooks/useWorkItemFull';
+import { useWorkItemTypeFields } from '@/ado/hooks/useWorkItemTypeFields';
 import { useSettings } from '@/state/settings.store';
 import { cn } from '@/lib/cn';
 import { AssigneePicker } from './AssigneePicker';
+import { Avatar } from './Avatar';
 import { CommentsPanel } from './CommentsPanel';
 import { CopyLinkButton } from './CopyLinkButton';
 import { OpenLinkButton } from './OpenLinkButton';
 import { DescriptionField } from './DescriptionField';
 import { HistoryPanel } from './HistoryPanel';
+import { MultiPicklistPicker } from './MultiPicklistPicker';
+import { PicklistPicker } from './PicklistPicker';
 import { TimeContributors } from './TimeContributors';
 import { WorkLogPanel } from './WorkLogPanel';
 import {
@@ -63,6 +70,33 @@ interface Draft {
   storyPoints: string;
   tags: string[];
   description: string;
+  bugHotfix: string;
+  components: string;
+  environment: string[];
+  rca: string;
+  rcaDescription: string;
+}
+
+/** Display names we look up on the Bug work-item-type field list. The ADO reference
+ *  names (Custom.DigitalPlatformsBugHotfix, etc.) vary by process template, so we
+ *  match by the user-visible name and read referenceName back from the schema.
+ *  The form labels may be shorter (e.g. just "Environment") — the matcher below
+ *  also accepts any name that *ends with* the listed target, which catches the
+ *  "Digital Platforms " prefix convention this org uses. */
+const BUG_FIELD_DISPLAY_NAMES = {
+  bugHotfix: 'Digital Platforms BugHotfix',
+  components: 'Digital Platforms Components',
+  environment: 'Digital Platforms Environment',
+  rca: 'Digital Platforms RCA',
+  rcaDescription: 'RCA Description',
+} as const;
+
+interface BugFieldMap {
+  bugHotfix: AdoFieldDefinition | null;
+  components: AdoFieldDefinition | null;
+  environment: AdoFieldDefinition | null;
+  rca: AdoFieldDefinition | null;
+  rcaDescription: AdoFieldDefinition | null;
 }
 
 function toDraft(task: TaskOnBoard): Draft {
@@ -74,6 +108,11 @@ function toDraft(task: TaskOnBoard): Draft {
     storyPoints: numToStr(readPoints(f)),
     tags: splitTags(f['System.Tags']),
     description: f['System.Description'] ?? '',
+    bugHotfix: '',
+    components: '',
+    environment: [],
+    rca: '',
+    rcaDescription: '',
   };
 }
 
@@ -93,6 +132,10 @@ function tagsEqual(a: string[], b: string[]): boolean {
   return true;
 }
 
+function asString(v: unknown): string {
+  return typeof v === 'string' ? v : v == null ? '' : String(v);
+}
+
 function numToStr(n: number | undefined): string {
   return n == null ? '' : String(n);
 }
@@ -109,6 +152,7 @@ function buildPatches(
   original: Draft,
   draft: Draft,
   pointsField: PointsFieldName,
+  bugFields: BugFieldMap | null,
 ): { patches: AdoFieldPatch[]; error?: string } {
   const patches: AdoFieldPatch[] = [];
 
@@ -138,6 +182,38 @@ function buildPatches(
   }
   if (draft.description !== original.description) {
     patches.push({ field: 'System.Description', value: draft.description });
+  }
+  if (bugFields) {
+    if (bugFields.bugHotfix && draft.bugHotfix !== original.bugHotfix) {
+      patches.push({
+        field: bugFields.bugHotfix.referenceName,
+        value: draft.bugHotfix || null,
+      });
+    }
+    if (bugFields.rca && draft.rca !== original.rca) {
+      patches.push({
+        field: bugFields.rca.referenceName,
+        value: draft.rca || null,
+      });
+    }
+    if (bugFields.environment && !tagsEqual(draft.environment, original.environment)) {
+      patches.push({
+        field: bugFields.environment.referenceName,
+        value: draft.environment.length ? joinTags(draft.environment) : null,
+      });
+    }
+    if (bugFields.components && draft.components !== original.components) {
+      patches.push({
+        field: bugFields.components.referenceName,
+        value: draft.components || null,
+      });
+    }
+    if (bugFields.rcaDescription && draft.rcaDescription !== original.rcaDescription) {
+      patches.push({
+        field: bugFields.rcaDescription.referenceName,
+        value: draft.rcaDescription,
+      });
+    }
   }
   return { patches };
 }
@@ -244,15 +320,108 @@ export function WorkItemModal({
 
   const wiType = task.workItem.fields['System.WorkItemType'];
   const type = workItemTypeStyle(wiType);
-  const original = useMemo(() => toDraft(task), [task]);
-  const [draft, setDraft] = useState<Draft>(original);
+  const isBug = wiType === 'Bug';
+  const createdBy = task.workItem.fields['System.CreatedBy'] ?? null;
+
+  const baseOriginal = useMemo(() => toDraft(task), [task]);
+  const [draft, setDraft] = useState<Draft>(baseOriginal);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<ActivityTab>('comments');
 
+  // Bug-only custom fields aren't in the taskboard batch payload — fetch the full
+  // work item + the Bug field schema (for allowedValues) on open. Reference names
+  // vary by process template so we match by display name.
+  const typeFields = useWorkItemTypeFields(wiType, open && isBug);
+  const full = useWorkItemFull(task.workItem.id, open && isBug);
+
+  const bugFields = useMemo<BugFieldMap | null>(() => {
+    if (!isBug || !typeFields.data) return null;
+    // Case- and whitespace-insensitive. Also accept a name ending in the target
+    // (e.g. match bare "Environment" against "Digital Platforms Environment")
+    // so the form labels in ADO don't have to match the backing field name.
+    const norm = (s: string) => s.trim().toLowerCase();
+    const findBy = (target: string) => {
+      const n = norm(target);
+      const exact = typeFields.data!.find((f) => norm(f.name) === n);
+      if (exact) return exact;
+      return typeFields.data!.find((f) => norm(f.name).endsWith(' ' + n)) ?? null;
+    };
+    return {
+      bugHotfix: findBy(BUG_FIELD_DISPLAY_NAMES.bugHotfix),
+      components: findBy(BUG_FIELD_DISPLAY_NAMES.components),
+      environment: findBy(BUG_FIELD_DISPLAY_NAMES.environment),
+      rca: findBy(BUG_FIELD_DISPLAY_NAMES.rca),
+      rcaDescription: findBy(BUG_FIELD_DISPLAY_NAMES.rcaDescription),
+    };
+  }, [isBug, typeFields.data]);
+
+  type CustomOriginal = Pick<
+    Draft,
+    'bugHotfix' | 'components' | 'environment' | 'rca' | 'rcaDescription'
+  >;
+  const customOriginal = useMemo<CustomOriginal | null>(() => {
+    if (!isBug || !full.data || !bugFields) return null;
+    const f = full.data.fields;
+    return {
+      bugHotfix: asString(
+        bugFields.bugHotfix ? f[bugFields.bugHotfix.referenceName] : '',
+      ),
+      components: asString(
+        bugFields.components ? f[bugFields.components.referenceName] : '',
+      ),
+      environment: splitTags(
+        asString(bugFields.environment ? f[bugFields.environment.referenceName] : ''),
+      ),
+      rca: asString(bugFields.rca ? f[bugFields.rca.referenceName] : ''),
+      rcaDescription: asString(
+        bugFields.rcaDescription ? f[bugFields.rcaDescription.referenceName] : '',
+      ),
+    };
+  }, [isBug, full.data, bugFields]);
+
+  const original = useMemo<Draft>(
+    () =>
+      customOriginal
+        ? {
+            ...baseOriginal,
+            bugHotfix: customOriginal.bugHotfix,
+            components: customOriginal.components,
+            environment: customOriginal.environment,
+            rca: customOriginal.rca,
+            rcaDescription: customOriginal.rcaDescription,
+          }
+        : baseOriginal,
+    [baseOriginal, customOriginal],
+  );
+
+  // Reset draft whenever the modal is (re)opened for a task. We intentionally depend
+  // on baseOriginal (not `original`): if we keyed on `original`, the custom-field
+  // fetch resolving would reset any edits the user already made.
   useEffect(() => {
-    setDraft(original);
+    setDraft(baseOriginal);
     setError(null);
-  }, [original, open]);
+  }, [baseOriginal, open]);
+
+  // One-shot hydration: when the Bug custom-field values arrive, merge them into the
+  // draft. Ref-guarded so the user doesn't get clobbered if they've edited something.
+  const customHydrated = useRef<number | null>(null);
+  useEffect(() => {
+    if (!open) {
+      customHydrated.current = null;
+      return;
+    }
+    if (!customOriginal) return;
+    if (customHydrated.current === task.workItem.id) return;
+    customHydrated.current = task.workItem.id;
+    setDraft((d) => ({
+      ...d,
+      bugHotfix: customOriginal.bugHotfix,
+      components: customOriginal.components,
+      environment: customOriginal.environment,
+      rca: customOriginal.rca,
+      rcaDescription: customOriginal.rcaDescription,
+    }));
+  }, [open, customOriginal, task.workItem.id]);
 
   const stateOptions = useMemo(
     () => stateOptionsFor(columns, wiType, original.state),
@@ -266,18 +435,28 @@ export function WorkItemModal({
     [task.workItem.fields],
   );
 
+  const fullKey = useMemo(
+    () => ['workitem-full', projectId, task.workItem.id] as const,
+    [projectId, task.workItem.id],
+  );
+
   const dirty =
     draft.title !== original.title ||
     draft.state !== original.state ||
     (draft.assignee?.uniqueName ?? null) !== (original.assignee?.uniqueName ?? null) ||
     draft.storyPoints !== original.storyPoints ||
     !tagsEqual(draft.tags, original.tags) ||
-    draft.description !== original.description;
+    draft.description !== original.description ||
+    draft.bugHotfix !== original.bugHotfix ||
+    draft.components !== original.components ||
+    draft.rca !== original.rca ||
+    draft.rcaDescription !== original.rcaDescription ||
+    !tagsEqual(draft.environment, original.environment);
 
   const save = useMutation({
     mutationFn: async () => {
       if (!projectId) throw new Error('Missing project');
-      const { patches, error } = buildPatches(original, draft, pointsField);
+      const { patches, error } = buildPatches(original, draft, pointsField, bugFields);
       if (error) throw new Error(error);
       if (patches.length === 0) return null;
       return patchWorkItemFields(projectId, task.workItem.id, patches);
@@ -290,10 +469,39 @@ export function WorkItemModal({
           applyDraftToTaskboard(prev, task.workItem.id, wiType, draft, pointsField),
         );
       }
-      return { prev };
+      // Also patch the full-workitem cache so custom-field edits survive a
+      // modal close/reopen without waiting for the refetch.
+      const prevFull = queryClient.getQueryData<AdoWorkItem>(fullKey);
+      if (prevFull && bugFields) {
+        queryClient.setQueryData<AdoWorkItem>(fullKey, {
+          ...prevFull,
+          fields: {
+            ...prevFull.fields,
+            ...(bugFields.bugHotfix && {
+              [bugFields.bugHotfix.referenceName]: draft.bugHotfix || undefined,
+            }),
+            ...(bugFields.components && {
+              [bugFields.components.referenceName]: draft.components || undefined,
+            }),
+            ...(bugFields.rca && {
+              [bugFields.rca.referenceName]: draft.rca || undefined,
+            }),
+            ...(bugFields.rcaDescription && {
+              [bugFields.rcaDescription.referenceName]: draft.rcaDescription || undefined,
+            }),
+            ...(bugFields.environment && {
+              [bugFields.environment.referenceName]: draft.environment.length
+                ? joinTags(draft.environment)
+                : undefined,
+            }),
+          },
+        });
+      }
+      return { prev, prevFull };
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(queryKey, ctx.prev);
+      if (ctx?.prevFull) queryClient.setQueryData(fullKey, ctx.prevFull);
       setError(
         err instanceof AdoError
           ? `${err.status} ${err.statusText} — ${err.body.slice(0, 200)}`
@@ -304,6 +512,7 @@ export function WorkItemModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: fullKey });
       onClose();
     },
   });
@@ -311,7 +520,7 @@ export function WorkItemModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const { error } = buildPatches(original, draft, pointsField);
+    const { error } = buildPatches(original, draft, pointsField, bugFields);
     if (error) {
       setError(error);
       return;
@@ -395,6 +604,18 @@ export function WorkItemModal({
               placeholder="Add a description…"
             />
           </Section>
+
+          {isBug && bugFields?.rcaDescription && (
+            <Section label="RCA Description">
+              <DescriptionField
+                value={draft.rcaDescription}
+                onChange={(html) =>
+                  setDraft((d) => ({ ...d, rcaDescription: html }))
+                }
+                placeholder="Add root-cause detail…"
+              />
+            </Section>
+          )}
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -487,6 +708,9 @@ export function WorkItemModal({
               boardAssignees={boardAssignees}
             />
           </SidebarField>
+          <SidebarField label="Created by">
+            <CreatedByRow identity={createdBy} />
+          </SidebarField>
           <SidebarField label="Story Points">
             <Input
               inputMode="decimal"
@@ -504,6 +728,20 @@ export function WorkItemModal({
               onChange={(tags) => setDraft((d) => ({ ...d, tags }))}
             />
           </SidebarField>
+          {isBug && (
+            <BugCustomFields
+              draft={draft}
+              setDraft={setDraft}
+              bugFields={bugFields}
+              loading={
+                !customOriginal &&
+                !typeFields.error &&
+                !full.error &&
+                (typeFields.isLoading || full.isLoading)
+              }
+              error={typeFields.error ?? full.error ?? null}
+            />
+          )}
           <SidebarField label="Time tracking">
             <div className="space-y-3">
               <TimeTracking
@@ -535,6 +773,120 @@ function Section({ label, children }: { label: string; children: React.ReactNode
       </div>
       {children}
     </div>
+  );
+}
+
+/** Read-only companion to the AssigneePicker button — same shape, same avatar, but
+ *  no chevron, no popover, and muted enough that it doesn't read as clickable. */
+function CreatedByRow({ identity }: { identity: AdoIdentity | null }) {
+  return (
+    <div
+      className={cn(
+        'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px]',
+        'bg-white/[0.02] border border-white/[0.06] text-zinc-300',
+      )}
+    >
+      <Avatar identity={identity ?? undefined} size="sm" />
+      <span className="truncate flex-1">
+        {identity?.displayName ?? 'Unknown'}
+      </span>
+    </div>
+  );
+}
+
+/** Bug-only custom fields block. Renders a loading state until the type-field schema
+ *  AND the full work item payload have both landed — otherwise we'd flash empty
+ *  pickers or not know the field reference names to write to. */
+function BugCustomFields({
+  draft,
+  setDraft,
+  bugFields,
+  loading,
+  error,
+}: {
+  draft: Draft;
+  setDraft: React.Dispatch<React.SetStateAction<Draft>>;
+  bugFields: BugFieldMap | null;
+  loading: boolean;
+  error: unknown;
+}) {
+  if (loading) {
+    return (
+      <>
+        <SidebarField label="Bug / Hotfix">
+          <LoadingRow />
+        </SidebarField>
+        <SidebarField label="Environment">
+          <LoadingRow />
+        </SidebarField>
+        <SidebarField label="Components">
+          <LoadingRow />
+        </SidebarField>
+        <SidebarField label="Root cause">
+          <LoadingRow />
+        </SidebarField>
+      </>
+    );
+  }
+  if (error) {
+    return (
+      <SidebarField label="Bug fields">
+        <div className="text-[11px] text-red-300/80">
+          Couldn't load Bug field schema.
+        </div>
+      </SidebarField>
+    );
+  }
+  return (
+    <>
+      {bugFields?.bugHotfix && (
+        <SidebarField label="Bug / Hotfix">
+          <PicklistPicker
+            value={draft.bugHotfix}
+            options={bugFields.bugHotfix.allowedValues ?? []}
+            onChange={(v) => setDraft((d) => ({ ...d, bugHotfix: v }))}
+          />
+        </SidebarField>
+      )}
+      {bugFields?.environment && (
+        <SidebarField label="Environment">
+          <MultiPicklistPicker
+            values={draft.environment}
+            options={bugFields.environment.allowedValues ?? []}
+            onChange={(v) => setDraft((d) => ({ ...d, environment: v }))}
+            placeholder={
+              (bugFields.environment.allowedValues ?? []).length === 0
+                ? 'No values defined in ADO'
+                : 'None'
+            }
+          />
+        </SidebarField>
+      )}
+      {bugFields?.components && (
+        <SidebarField label="Components">
+          <PicklistPicker
+            value={draft.components}
+            options={bugFields.components.allowedValues ?? []}
+            onChange={(v) => setDraft((d) => ({ ...d, components: v }))}
+          />
+        </SidebarField>
+      )}
+      {bugFields?.rca && (
+        <SidebarField label="Root cause">
+          <PicklistPicker
+            value={draft.rca}
+            options={bugFields.rca.allowedValues ?? []}
+            onChange={(v) => setDraft((d) => ({ ...d, rca: v }))}
+          />
+        </SidebarField>
+      )}
+    </>
+  );
+}
+
+function LoadingRow() {
+  return (
+    <div className="h-8 rounded-md bg-white/[0.02] border border-white/[0.06] animate-pulse" />
   );
 }
 

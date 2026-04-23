@@ -1,0 +1,199 @@
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
+import { Plus, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/cn';
+
+const POPOVER_WIDTH = 240;
+const POPOVER_MAX_HEIGHT = 320;
+
+/** Tag-style multi-select where values are restricted to a pick-list (e.g. Environment).
+ *  Shows selected values as chips with X; a trailing "+" opens a popover listing the
+ *  remaining options. */
+export function MultiPicklistPicker({
+  values,
+  options,
+  onChange,
+  placeholder = 'None',
+}: {
+  values: string[];
+  options: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (btnRef.current) setRect(btnRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  // Capture-phase Escape so the popover closes without bubbling to the modal's
+  // window-level Escape handler (which would close the whole dialog).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      setOpen(false);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open]);
+
+  const remaining = useMemo(() => {
+    const lower = new Set(values.map((v) => v.toLowerCase()));
+    const avail = options.filter((o) => !lower.has(o.toLowerCase()));
+    const q = filter.trim().toLowerCase();
+    if (!q) return avail;
+    return avail.filter((o) => o.toLowerCase().includes(q));
+  }, [filter, options, values]);
+
+  function toggle() {
+    if (!open && btnRef.current) {
+      setRect(btnRef.current.getBoundingClientRect());
+    }
+    setOpen((o) => !o);
+  }
+
+  function add(opt: string) {
+    if (values.some((v) => v.toLowerCase() === opt.toLowerCase())) return;
+    onChange([...values, opt]);
+    setFilter('');
+    // Keep open so user can add multiple quickly; close when they click away.
+  }
+
+  function remove(opt: string) {
+    onChange(values.filter((v) => v !== opt));
+  }
+
+  const popoverStyle: React.CSSProperties | null = rect
+    ? (() => {
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const flipUp = spaceBelow < POPOVER_MAX_HEIGHT && rect.top > spaceBelow;
+        const top = flipUp
+          ? Math.max(8, rect.top - POPOVER_MAX_HEIGHT - 4)
+          : rect.bottom + 4;
+        const rightAligned = rect.right - POPOVER_WIDTH;
+        const left = Math.max(
+          8,
+          Math.min(rightAligned, window.innerWidth - POPOVER_WIDTH - 8),
+        );
+        return { position: 'fixed', top, left, width: POPOVER_WIDTH };
+      })()
+    : null;
+
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-1 min-h-[32px] rounded-md px-1.5 py-1',
+        'bg-white/[0.03] border border-white/[0.08]',
+        'transition-colors duration-150',
+      )}
+    >
+      {values.length === 0 && (
+        <span className="text-[12px] text-zinc-600 px-1">{placeholder}</span>
+      )}
+      {values.map((v) => (
+        <span
+          key={v}
+          className="inline-flex items-center gap-0.5 rounded bg-white/[0.06] pl-2 pr-0.5 py-0.5 text-[11px] text-zinc-200 lit-top"
+        >
+          {v}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => remove(v)}
+            aria-label={`Remove ${v}`}
+            className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        aria-label="Add value"
+        className={cn(
+          'inline-flex items-center justify-center h-5 w-5 rounded',
+          'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06] transition-colors',
+        )}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+      {open &&
+        popoverStyle &&
+        createPortal(
+          <div
+            ref={popRef}
+            data-no-drag
+            style={{ ...popoverStyle, zIndex: 60 }}
+            className="rounded-md border border-white/[0.08] bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+          >
+            <div className="p-1.5 border-b border-white/[0.06]">
+              <Input
+                autoFocus
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Search…"
+                className="h-7"
+              />
+            </div>
+            <div className="max-h-64 overflow-auto py-1">
+              {remaining.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => add(opt)}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-200 hover:bg-white/[0.04]"
+                >
+                  <span className="flex-1 text-left truncate">{opt}</span>
+                </button>
+              ))}
+              {remaining.length === 0 && (
+                <div className="px-2.5 py-2 text-[12px] text-zinc-600">
+                  {values.length === options.length ? 'All added.' : 'No matches.'}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
