@@ -37,32 +37,19 @@ export interface TaskboardData {
 
 function log(...args: unknown[]): void {
   // eslint-disable-next-line no-console
-  console.debug('[jirafied]', ...args);
+  console.debug('[giraffied]', ...args);
 }
 
-/**
- * Default swimlane order until the user can drag-reorder (Phase 5+).
- * Lower priority = higher on the board. Bugs end up at the bottom, Stories
- * and PBIs at the top; unknown types slot in the middle alongside Tasks.
- */
-const ROW_TYPE_PRIORITY: Record<string, number> = {
-  Feature: 0,
-  Epic: 1,
-  'User Story': 2,
-  'Product Backlog Item': 2,
-  Issue: 2,
-  Requirement: 2,
-  Task: 3,
-  Bug: 4,
-};
-
+/** Sort swimlane rows by work-item type alphabetically, with Bug always pinned
+ *  to the very bottom regardless of letter. Within the same type, JS's stable
+ *  sort preserves ADO's returned order (StackRank / backlog order). */
 function compareRows(a: AdoWorkItem, b: AdoWorkItem): number {
-  const pa = ROW_TYPE_PRIORITY[a.fields['System.WorkItemType']] ?? 3;
-  const pb = ROW_TYPE_PRIORITY[b.fields['System.WorkItemType']] ?? 3;
-  if (pa !== pb) return pa - pb;
-  return a.fields['System.Title'].localeCompare(b.fields['System.Title'], undefined, {
-    sensitivity: 'base',
-  });
+  const ta = a.fields['System.WorkItemType'];
+  const tb = b.fields['System.WorkItemType'];
+  if (ta === tb) return 0;
+  if (ta === 'Bug') return 1;
+  if (tb === 'Bug') return -1;
+  return ta.localeCompare(tb, undefined, { sensitivity: 'base' });
 }
 
 /** Server-side check that fires when a team has never saved taskboard-column config,
