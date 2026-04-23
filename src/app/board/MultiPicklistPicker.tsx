@@ -150,7 +150,7 @@ export function MultiPicklistPicker({
         onClick={toggle}
         aria-label="Add value"
         className={cn(
-          'inline-flex items-center justify-center h-5 w-5 rounded',
+          'inline-flex ml-auto items-center justify-center h-5 w-5 rounded',
           'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06] transition-colors',
         )}
       >

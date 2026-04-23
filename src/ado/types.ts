@@ -173,6 +173,121 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'Microsoft.VSTS.Common.StackRank',
 ] as const;
 
+/** One entry from `GET /_apis/wit/fields?api-version=7.1` — the org-wide field registry.
+ *  We use the field's `type` to decide which widget can edit it (html → rich text,
+ *  integer → number input, …) and `isPicklist` + `isIdentity` to refine the choice. */
+export type AdoFieldDataType =
+  | 'string'
+  | 'integer'
+  | 'double'
+  | 'boolean'
+  | 'dateTime'
+  | 'html'
+  | 'history'
+  | 'plainText'
+  | 'treePath'
+  | 'guid'
+  | 'identity'
+  | 'picklistString'
+  | 'picklistInteger'
+  | 'picklistDouble';
+
+export interface AdoField {
+  referenceName: string;
+  name: string;
+  description?: string;
+  type: AdoFieldDataType;
+  usage?: string;
+  readOnly?: boolean;
+  canSortBy?: boolean;
+  isQueryable?: boolean;
+  isIdentity?: boolean;
+  isPicklist?: boolean;
+  isPicklistSuggested?: boolean;
+  picklistId?: string;
+  url?: string;
+  isDeleted?: boolean;
+}
+
+/** One project property entry from `GET /_apis/projects/{id}/properties`. We read the
+ *  `System.CurrentProcessTemplateId` key off this to resolve the project's process id. */
+export interface AdoProjectProperty {
+  name: string;
+  value: string;
+}
+
+/** Shape of `GET /_apis/work/processes/{processId}/workItemTypes/{ref}/layout`.
+ *  Pages (tabs) → sections (columns within a page) → groups (collapsible panels) →
+ *  controls (individual field widgets). We only consume the first custom page for
+ *  v1; history/discussion/etc pages are non-form and we render them ourselves. */
+export interface AdoFormLayout {
+  pages: AdoFormPage[];
+  systemControls?: AdoFormControl[];
+  extensions?: unknown[];
+}
+
+export interface AdoFormPage {
+  id: string;
+  label: string;
+  locked?: boolean;
+  visible?: boolean;
+  order?: number;
+  /** "custom" is the main editable tab; "history" / "links" / "attachments" are
+   *  non-form. Jirafied only reads controls from `custom` pages. */
+  pageType?: string;
+  sections: AdoFormSection[];
+  inherited?: boolean;
+  overridden?: boolean;
+}
+
+export interface AdoFormSection {
+  id: string;
+  groups: AdoFormGroup[];
+  overridden?: boolean;
+}
+
+export interface AdoFormGroup {
+  id: string;
+  label?: string;
+  visible?: boolean;
+  order?: number;
+  controls: AdoFormControl[];
+  inherited?: boolean;
+  overridden?: boolean;
+  height?: number;
+  isContribution?: boolean;
+}
+
+export interface AdoFormControl {
+  id: string;
+  label?: string;
+  /** One of FieldControl | HtmlFieldControl | DateTimeControl | IdentityFieldControl |
+   *  WorkItemClassificationControl | … — the widget hint from the process template.
+   *  `null` / missing when the control is a contribution-based extension. */
+  controlType?: string | null;
+  readOnly?: boolean;
+  visible?: boolean;
+  order?: number;
+  watermark?: string;
+  metadata?: string;
+  height?: number;
+  inherited?: boolean;
+  overridden?: boolean;
+  isContribution?: boolean;
+  /** Field reference name this control edits. For FieldControls this is usually the
+   *  same as `id`; for contribution controls it lives on `fieldRef` instead. Read
+   *  both. */
+  fieldRef?: string;
+  /** Contribution metadata, present when the control is a marketplace extension
+   *  (multi-value picklist, rich picker, …). The actual field reference usually
+   *  lives in `contribution.inputs.FieldName`. */
+  contribution?: {
+    contributionId?: string;
+    inputs?: Record<string, unknown>;
+    height?: number;
+  };
+}
+
 /** One entry from `GET /{project}/_apis/wit/workitemtypes/{type}/fields?$expand=allowedValues`.
  *  `name` is the display name shown in ADO; `referenceName` is the API id we PATCH against
  *  (e.g. `Custom.DigitalPlatformsBugHotfix`). `allowedValues` is populated for pick-list

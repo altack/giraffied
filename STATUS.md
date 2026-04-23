@@ -1,6 +1,6 @@
 # Jirafied — Status
 
-Last worked on: **2026-04-22** (Phase 8 create-task dialog + empty-parent-lane fix)
+Last worked on: **2026-04-23** (Phase 10 sidebar polish — Core / Pinned / More collapsible)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -124,6 +124,51 @@ Originally planned as an inline "+ New task" row under every swimlane (Linear-st
 
 ### Empty-parent-lane fix ✅ (unrelated to Phase 8)
 `useTaskboard` was building `rowIdSet` only from children's parents, so a Bug/Story/Feature freshly added to the sprint with no Task children yet was invisible — nothing referenced it as a parent. Now we also walk the iteration's root relations (`source:null`) and add any root work item that isn't itself a card (not in `cardsById`) as a swimlane row. Teams using "Bugs as tasks" config are unaffected: those Bugs are cards, already in `cardsById`, so they flow through the existing `unparented` path. Empty lanes now match native ADO and pair naturally with the new `+` button — perfect entry point for adding the first Task to a brand-new Bug.
+
+### Phase 9 — Data-driven work-item modal ✅
+Extra fields in the quick-edit modal are now **discovered from the team's ADO form layout** instead of hardcoded. Open a Bug and you see Repro Steps, System Info, Acceptance Criteria, RCA Description, Priority, Severity, Environment (multi-value chip picker), Bug/Hotfix, Components, Root Cause (RCA), Security relevant (checkbox), CVSS score, Affected asset, Found-in / Integrated-in Build — because that's what the team put on their Bug form. Open a Task and you see whatever that team configured for Tasks. No per-field code to maintain; no display-name matching against a guessed reference name list.
+
+**Discovery (three endpoints, cached forever):**
+- `GET /_apis/work/processes?$expand=projects` — find the inherited process whose `projects` list contains our project id. This is the authoritative source; the older `System.CurrentProcessTemplateId` project property sometimes returns a stale/classic template id that `/_apis/work/processes/{id}` doesn't know about. `useProcessId` prefers the listing, falls back to `getProjectCapabilities.templateTypeId`, and throws "classic process" if neither works.
+- `GET /_apis/wit/fields` — the org-level field registry (2k+ fields for typical orgs). Gives us the `type` + `isIdentity` + `isPicklist` flags for every field on the form.
+- `GET /_apis/work/processes/{processId}/workItemTypes/{ref}/layout` — pages → sections → groups → controls. Resolves the WIT reference name via `getWorkItemType(projectId, displayName)` first since the display name is all the modal has.
+
+**`buildFormDescriptor(layout, orgFields, typeFields)` (in `src/ado/form.ts`):** aggregates every `pageType: "custom"` visible page, iterates groups → controls, and for each resolvable field produces a `FormControl { referenceName, displayName, widget, allowedValues, readOnly, required, helpText }`. Widget kind is picked from `controlType` first (HtmlFieldControl, DateTimeControl, IdentityFieldControl, WorkItemClassificationControl), then the field's data-type (html/plainText/boolean/integer/double/string/picklistString), with contribution controls detected via `contribution.contributionId` substring match (marketplace picklist extensions — single and multi-value). Structural fields handled by the modal's dedicated widgets (Title, State, AssignedTo, Tags, Description, Created-by, story-point aliases) are skipped so they don't double-up. Groups with any html/plainText control go to `mainGroups` (wide rich editors); everything else to `sidebarGroups`. Pure-UI controls with no backing field — `DeploymentsControl`, `LinksControl`, anonymous heading labels — are dropped.
+
+**Widget library (`src/app/board/widgets/`):** one widget per kind with a shared `{ control, value, onChange, disabled }` props signature. `StringWidget` (Input), `NumberWidget` (held as string in draft so "1." mid-typing survives), `HtmlWidget` (wraps `DescriptionField`), `PlainTextWidget` (textarea), `PicklistSingleWidget` (wraps `PicklistPicker`), `PicklistMultiWidget` (wraps `MultiPicklistPicker`), `IdentityWidget` (wraps `AssigneePicker` with empty board-assignees so search falls straight to team roster), `DateTimeWidget` (native datetime-local with `[color-scheme:dark]`), `BooleanWidget` (checkbox), `ReadOnlyWidget` (label + formatted value, handles arrays + identities), `TreePathWidget` (ReadOnly stub for v1). `FieldRow` is the dispatcher; renders label + required asterisk + help-text tooltip, then switches on `control.widget`. `readOnly` controls always render through `ReadOnlyWidget` regardless of widget kind.
+
+**Generic draft + patch (`src/app/board/form-state.ts`):**
+- `buildInitialDraft(controls, workItemFields)` → `Record<ref, DraftValue>` — hydrates per widget, so picklistMulti holds `string[]`, boolean holds `bool`, identity holds the `AdoIdentity` object, numbers held as string for editability.
+- `diffDraft(controls, original, draft)` → `AdoFieldPatch[]` — per-widget equality rules (identity by uniqueName, multi-picklist by joined `"a; b"`, numbers by string comparison) and per-widget wire conversion (multi-picklist joins with `; `, identity sends uniqueName, empty strings round-trip to null via the existing JSON-Patch `remove` op in `patchWorkItemFields`).
+- `validateDraft(controls, draft)` — checks `alwaysRequired` flag, returns the first violation. Booleans are considered always-set.
+
+**Modal refactor:** `WorkItemModal.tsx` now keeps a narrow structural `Draft` (title, state, assignee, storyPoints, tags, description) and a parallel `layoutDraft: DraftRecord` for everything discovered. The structural draft resets on modal open; the layout draft hydrates once per `task.workItem.id` via a `useRef`-guarded effect so a slow fetch arriving after the user has edited a layout field doesn't clobber those edits. Save concatenates `buildPatches(structural)` + `diffDraft(layout)` into a single `PATCH /wit/workitems/{id}` — one network call regardless of how many fields changed. Optimistic cache writes the structural fields through `applyDraftToTaskboard` and every layout patch through the full-workitem cache so close/reopen shows the edited value before the refetch lands.
+
+**Group-header dedup:** single-control groups (Repro Steps, System Info, Acceptance Criteria, RCA Description) suppress their group header — the field label already carries the same name, so the native ADO UI renders them without a section heading and we match that. Multi-control groups (Details, Build, Security issues) keep their header.
+
+**Fallbacks:** classic Agile/Scrum/CMMI projects (no `/work/processes` entry) throw clean from `useProcessId` and the sidebar shows "Couldn't load form layout. Core fields still editable." — structural fields stay fully usable. Loading state shows skeleton blocks in both main and sidebar.
+
+**Deleted:** the hardcoded `BUG_FIELD_DISPLAY_NAMES` + `BugFieldMap` + `BugCustomFields` machinery from Phase 6.5. Environment/Components/BugHotfix/RCA/RCA Description all now appear because ADO says they do, not because we hardcoded their display names. If a team adds a new field to their form, it appears in the modal on the next reload — no code change required.
+
+**Out of scope for v1:** Area/Iteration tree pickers (rendered read-only via `TreePathWidget` stub), attachments, conditional-visibility field rules.
+
+### Phase 10 — Pinned sidebar + Status picker ✅
+Phase 9 put every form-layout field in the sidebar, which was chaotic on Bugs (13+ rows). Phase 10 reorganizes the sidebar into three zones so the default view stays quiet and the user can opt-in to seeing more.
+
+**Zones (top → bottom):**
+- **Core** (locked): Status · Assignee · Created by · Story Points · Tags · Time tracking. Never takes a pin icon — these are work-item-level essentials, always visible.
+- **Pinned**: layout fields the user has pinned, plus per-type defaults. For **Bug** we default-pin **Severity · Environment · Bug/Hotfix**. Each row reveals a `PinOff` icon on hover.
+- **MORE FIELDS (N)** collapsible, **closed by default**. Expands to show the rest of the layout fields, preserving ADO's group structure (Details, Build, Security issues, …). Each row reveals a `Pin` icon on hover; clicking it promotes the field into the Pinned zone.
+
+Hairline dividers (`border-white/[0.06]` full-width via `-mx-4`) separate the zones. Pin buttons are 20×20, `opacity-0 group-hover:opacity-100` — invisible until aimed at.
+
+**Default-pin resolution** (`src/app/board/default-pins.ts`): per-WIT map of display names resolved by case-insensitive match against the current descriptor's sidebar controls. The matcher also accepts `endsWith ' target'` or `endsWith '/target'` so "Digital Platforms Environment" still resolves against "Environment" and "Bug/Hotfix" matches regardless of prefix. No ADO reference names are hardcoded — portable across process templates.
+
+**Pin state** (`src/state/pinnedFields.store.ts`): Zustand + persist, keyed per work-item type, with `{ added: string[], hidden: string[] }` per type. Effective pins = `(defaults ∪ added) \ hidden`, so a user can unpin a default (e.g. if their team doesn't care about Severity) and the choice survives across sessions. Persistence goes through the existing `chromeLocalStorage` adapter → `chrome.storage.local`.
+
+**Status picker upgrade:** the previous raw `<select>` showed only states the team had *mapped* to taskboard columns — which omits valid states like "New" or "Approved" on many boards. Replaced with the same `PicklistPicker` that every other sidebar dropdown uses (search, 2-line-clamp, tooltip), fed by a new `useWorkItemStates` hook that reads the full non-Removed state list from `getWorkItemType(projectId, typeName)`. Falls back to the column-derived list if the state fetch errors, so the dropdown never empties. `PicklistPicker` also grew a `clearable` prop — off for Status (state is never empty), on by default.
+
+**FieldRow action slot:** the label row of the generic `FieldRow` now accepts a trailing `action` node, right-aligned via `ml-auto`. The sidebar renderer wraps each pinnable row in `group` so the pin button can hover-reveal with `opacity-0 group-hover:opacity-100`.
 
 ---
 

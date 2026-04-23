@@ -2,11 +2,14 @@ import { ado, adoPaged } from './client';
 import type {
   AdoCommentList,
   AdoConnectionData,
+  AdoField,
   AdoFieldDefinition,
+  AdoFormLayout,
   AdoIteration,
   AdoIterationWorkItems,
   AdoList,
   AdoProject,
+  AdoProjectProperty,
   AdoReorderOperation,
   AdoReorderResponse,
   AdoTaskboardColumns,
@@ -127,6 +130,92 @@ export async function getWorkItemTypeFields(
     path: `/${encodeURIComponent(projectId)}/_apis/wit/workitemtypes/${encodeURIComponent(typeName)}/fields?$expand=allowedValues`,
   });
   return res.value;
+}
+
+/** GET the project's properties, used as ONE input when resolving the process id.
+ *  Note: `System.CurrentProcessTemplateId` from this endpoint is the project's
+ *  classic template type id, which is NOT what `/_apis/work/processes/{id}` wants
+ *  for inherited processes. Use `getProjectCapabilities` or `listProcesses` (with
+ *  $expand=Projects) to resolve the inherited-process id instead. */
+export async function getProjectProperties(
+  projectId: string,
+): Promise<AdoProjectProperty[]> {
+  const res = await ado<AdoList<AdoProjectProperty>>({
+    path: `/_apis/projects/${encodeURIComponent(projectId)}/properties`,
+    apiVersion: '7.1-preview.1',
+  });
+  return res.value;
+}
+
+/** GET the project with its capabilities. `capabilities.processTemplate.templateTypeId`
+ *  is the id of the inherited process the project runs on (or the classic template id
+ *  for old projects — which won't resolve against the `/work/processes` API). */
+export interface AdoProjectCapabilities {
+  id: string;
+  name: string;
+  capabilities?: {
+    processTemplate?: {
+      templateName?: string;
+      templateTypeId?: string;
+    };
+    versioncontrol?: { sourceControlType?: string };
+  };
+}
+
+export function getProjectCapabilities(
+  projectId: string,
+): Promise<AdoProjectCapabilities> {
+  return ado<AdoProjectCapabilities>({
+    path: `/_apis/projects/${encodeURIComponent(projectId)}?includeCapabilities=true`,
+  });
+}
+
+/** LIST inherited processes in the org. `$expand=Projects` adds each process's
+ *  project list, so we can resolve "which process does project X use" even when
+ *  `getProjectCapabilities.templateTypeId` is stale or points at a parent classic
+ *  template instead of the inherited child. Classic processes do not appear here. */
+export interface AdoProcessInfo {
+  typeId: string;
+  referenceName: string;
+  name: string;
+  parentProcessTypeId?: string;
+  description?: string;
+  isEnabled?: boolean;
+  isDefault?: boolean;
+  customizationType?: string;
+  projects?: Array<{ id: string; name: string }>;
+}
+
+export async function listProcesses(): Promise<AdoProcessInfo[]> {
+  const res = await ado<AdoList<AdoProcessInfo>>({
+    path: `/_apis/work/processes?$expand=projects`,
+    apiVersion: '7.1-preview.2',
+  });
+  return res.value;
+}
+
+/** GET every field in the org with its data type + picklist flags. One call per
+ *  session is plenty — fields rarely change. Used to look up the data type of a
+ *  form control's backing field when picking a widget. */
+export async function getOrgFields(): Promise<AdoField[]> {
+  const res = await ado<AdoList<AdoField>>({
+    path: `/_apis/wit/fields`,
+  });
+  return res.value;
+}
+
+/** GET the form layout for a work-item type under a given process. Pages →
+ *  sections → groups → controls, with `controlType` hints we map to our widget
+ *  set. Requires an inherited (or custom-inherited) process — classic XML
+ *  processes expose layout through a different API that we don't support in v1. */
+export function getWorkItemTypeLayout(
+  processId: string,
+  witRefName: string,
+): Promise<AdoFormLayout> {
+  return ado<AdoFormLayout>({
+    path: `/_apis/work/processes/${encodeURIComponent(processId)}/workItemTypes/${encodeURIComponent(witRefName)}/layout`,
+    apiVersion: '7.1-preview.1',
+  });
 }
 
 /** GET a single work item with all fields. The taskboard batch fetch only asks for

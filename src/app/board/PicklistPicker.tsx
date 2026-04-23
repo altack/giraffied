@@ -23,6 +23,7 @@ export function PicklistPicker({
   placeholder = '—',
   clearLabel = 'None',
   disabled = false,
+  clearable = true,
 }: {
   value: string;
   options: string[];
@@ -30,6 +31,9 @@ export function PicklistPicker({
   placeholder?: string;
   clearLabel?: string;
   disabled?: boolean;
+  /** When false, hides the leading "None" entry. Use for fields that must
+   *  always have a value (e.g. Status). */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -160,17 +164,19 @@ export function PicklistPicker({
               />
             </div>
             <div className="max-h-64 overflow-auto py-1">
-              <button
-                type="button"
-                onClick={() => pick('')}
-                className={cn(
-                  'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-400 hover:bg-white/[0.04]',
-                  value === '' && 'bg-white/[0.03] text-zinc-100',
-                )}
-              >
-                <Minus className="h-4 w-4 text-zinc-500" />
-                {clearLabel}
-              </button>
+              {clearable && (
+                <button
+                  type="button"
+                  onClick={() => pick('')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-400 hover:bg-white/[0.04]',
+                    value === '' && 'bg-white/[0.03] text-zinc-100',
+                  )}
+                >
+                  <Minus className="h-4 w-4 text-zinc-500" />
+                  {clearLabel}
+                </button>
+              )}
               {results.map((opt) => {
                 const selected = opt === value;
                 return (

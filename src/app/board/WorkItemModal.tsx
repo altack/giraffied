@@ -8,7 +8,7 @@ import {
 } from 'react';
 import {
   AlertCircle,
-  ChevronDown,
+  ChevronRight,
   Save,
   History as HistoryIcon,
   Loader2,
@@ -28,15 +28,18 @@ import {
   patchWorkItemFields,
 } from '@/ado/endpoints';
 import type {
-  AdoFieldDefinition,
   AdoIdentity,
   AdoTaskboardColumn,
   AdoWorkItem,
 } from '@/ado/types';
 import type { TaskboardData, TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { useComments } from '@/ado/hooks/useComments';
+import { useOrgFields } from '@/ado/hooks/useOrgFields';
 import { useWorkItemFull } from '@/ado/hooks/useWorkItemFull';
+import { useWorkItemStates } from '@/ado/hooks/useWorkItemStates';
 import { useWorkItemTypeFields } from '@/ado/hooks/useWorkItemTypeFields';
+import { useWorkItemTypeLayout } from '@/ado/hooks/useWorkItemTypeLayout';
+import { buildFormDescriptor, type FormControl } from '@/ado/form';
 import { useSettings } from '@/state/settings.store';
 import { cn } from '@/lib/cn';
 import { AssigneePicker } from './AssigneePicker';
@@ -46,10 +49,20 @@ import { CopyLinkButton } from './CopyLinkButton';
 import { OpenLinkButton } from './OpenLinkButton';
 import { DescriptionField } from './DescriptionField';
 import { HistoryPanel } from './HistoryPanel';
-import { MultiPicklistPicker } from './MultiPicklistPicker';
-import { PicklistPicker } from './PicklistPicker';
 import { TimeContributors } from './TimeContributors';
 import { WorkLogPanel } from './WorkLogPanel';
+import { FieldRow } from './widgets';
+import type { DraftValue } from './widgets/types';
+import {
+  buildInitialDraft,
+  diffDraft,
+  validateDraft,
+  type DraftRecord,
+} from './form-state';
+import { PicklistPicker } from './PicklistPicker';
+import { PinButton } from './PinButton';
+import { resolveDefaultPins } from './default-pins';
+import { usePinnedFields, effectivePins } from '@/state/pinnedFields.store';
 import {
   readPoints,
   workItemTypeStyle,
@@ -63,6 +76,12 @@ const POSITIVE_NUMBER_RE = /^\d*\.?\d*$/;
 
 type ActivityTab = 'comments' | 'worklog' | 'history';
 
+/** Structural draft — the fields the modal renders with dedicated widgets that
+ *  live *outside* the layout-driven generic form (title headline, state dropdown
+ *  tied to the board columns, assignee picker with board-assignee default,
+ *  points auto-selection across Effort/Size/StoryPoints, inline Tags chips,
+ *  rich Description). Everything else comes from the discovered FormDescriptor
+ *  and lives in the `layoutDraft` record. */
 interface Draft {
   title: string;
   state: string;
@@ -70,33 +89,6 @@ interface Draft {
   storyPoints: string;
   tags: string[];
   description: string;
-  bugHotfix: string;
-  components: string;
-  environment: string[];
-  rca: string;
-  rcaDescription: string;
-}
-
-/** Display names we look up on the Bug work-item-type field list. The ADO reference
- *  names (Custom.DigitalPlatformsBugHotfix, etc.) vary by process template, so we
- *  match by the user-visible name and read referenceName back from the schema.
- *  The form labels may be shorter (e.g. just "Environment") — the matcher below
- *  also accepts any name that *ends with* the listed target, which catches the
- *  "Digital Platforms " prefix convention this org uses. */
-const BUG_FIELD_DISPLAY_NAMES = {
-  bugHotfix: 'Digital Platforms BugHotfix',
-  components: 'Digital Platforms Components',
-  environment: 'Digital Platforms Environment',
-  rca: 'Digital Platforms RCA',
-  rcaDescription: 'RCA Description',
-} as const;
-
-interface BugFieldMap {
-  bugHotfix: AdoFieldDefinition | null;
-  components: AdoFieldDefinition | null;
-  environment: AdoFieldDefinition | null;
-  rca: AdoFieldDefinition | null;
-  rcaDescription: AdoFieldDefinition | null;
 }
 
 function toDraft(task: TaskOnBoard): Draft {
@@ -108,11 +100,6 @@ function toDraft(task: TaskOnBoard): Draft {
     storyPoints: numToStr(readPoints(f)),
     tags: splitTags(f['System.Tags']),
     description: f['System.Description'] ?? '',
-    bugHotfix: '',
-    components: '',
-    environment: [],
-    rca: '',
-    rcaDescription: '',
   };
 }
 
@@ -132,10 +119,6 @@ function tagsEqual(a: string[], b: string[]): boolean {
   return true;
 }
 
-function asString(v: unknown): string {
-  return typeof v === 'string' ? v : v == null ? '' : String(v);
-}
-
 function numToStr(n: number | undefined): string {
   return n == null ? '' : String(n);
 }
@@ -152,7 +135,6 @@ function buildPatches(
   original: Draft,
   draft: Draft,
   pointsField: PointsFieldName,
-  bugFields: BugFieldMap | null,
 ): { patches: AdoFieldPatch[]; error?: string } {
   const patches: AdoFieldPatch[] = [];
 
@@ -182,38 +164,6 @@ function buildPatches(
   }
   if (draft.description !== original.description) {
     patches.push({ field: 'System.Description', value: draft.description });
-  }
-  if (bugFields) {
-    if (bugFields.bugHotfix && draft.bugHotfix !== original.bugHotfix) {
-      patches.push({
-        field: bugFields.bugHotfix.referenceName,
-        value: draft.bugHotfix || null,
-      });
-    }
-    if (bugFields.rca && draft.rca !== original.rca) {
-      patches.push({
-        field: bugFields.rca.referenceName,
-        value: draft.rca || null,
-      });
-    }
-    if (bugFields.environment && !tagsEqual(draft.environment, original.environment)) {
-      patches.push({
-        field: bugFields.environment.referenceName,
-        value: draft.environment.length ? joinTags(draft.environment) : null,
-      });
-    }
-    if (bugFields.components && draft.components !== original.components) {
-      patches.push({
-        field: bugFields.components.referenceName,
-        value: draft.components || null,
-      });
-    }
-    if (bugFields.rcaDescription && draft.rcaDescription !== original.rcaDescription) {
-      patches.push({
-        field: bugFields.rcaDescription.referenceName,
-        value: draft.rcaDescription,
-      });
-    }
   }
   return { patches };
 }
@@ -320,113 +270,111 @@ export function WorkItemModal({
 
   const wiType = task.workItem.fields['System.WorkItemType'];
   const type = workItemTypeStyle(wiType);
-  const isBug = wiType === 'Bug';
   const createdBy = task.workItem.fields['System.CreatedBy'] ?? null;
 
-  const baseOriginal = useMemo(() => toDraft(task), [task]);
-  const [draft, setDraft] = useState<Draft>(baseOriginal);
+  const original = useMemo(() => toDraft(task), [task]);
+  const [draft, setDraft] = useState<Draft>(original);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<ActivityTab>('comments');
 
-  // Bug-only custom fields aren't in the taskboard batch payload — fetch the full
-  // work item + the Bug field schema (for allowedValues) on open. Reference names
-  // vary by process template so we match by display name.
-  const typeFields = useWorkItemTypeFields(wiType, open && isBug);
-  const full = useWorkItemFull(task.workItem.id, open && isBug);
+  // Form-layout discovery: the fields the team configured on this work-item type.
+  // These three fetches drive the generic layout-driven form. Running them for
+  // every work-item type (not just Bug) so Tasks/Stories/PBIs also pick up any
+  // Repro Steps / Acceptance Criteria / etc that are on their ADO forms.
+  const orgFields = useOrgFields();
+  const typeFields = useWorkItemTypeFields(wiType, open);
+  const layout = useWorkItemTypeLayout(wiType, open);
+  const full = useWorkItemFull(task.workItem.id, open);
+  // Build the FormDescriptor that drives generic field rendering. Requires both
+  // the layout schema and the org-level field registry; type-level allowedValues
+  // are merged in when available (picklists without them render with an empty
+  // popover — fine, just unusable until the data lands).
+  const descriptor = useMemo(() => {
+    if (!layout.data || !orgFields.data) return null;
+    const typeMap = new Map(
+      (typeFields.data ?? []).map((f) => [f.referenceName, f]),
+    );
+    return buildFormDescriptor(layout.data, orgFields.data.byRef, typeMap);
+  }, [layout.data, orgFields.data, typeFields.data]);
 
-  const bugFields = useMemo<BugFieldMap | null>(() => {
-    if (!isBug || !typeFields.data) return null;
-    // Case- and whitespace-insensitive. Also accept a name ending in the target
-    // (e.g. match bare "Environment" against "Digital Platforms Environment")
-    // so the form labels in ADO don't have to match the backing field name.
-    const norm = (s: string) => s.trim().toLowerCase();
-    const findBy = (target: string) => {
-      const n = norm(target);
-      const exact = typeFields.data!.find((f) => norm(f.name) === n);
-      if (exact) return exact;
-      return typeFields.data!.find((f) => norm(f.name).endsWith(' ' + n)) ?? null;
-    };
-    return {
-      bugHotfix: findBy(BUG_FIELD_DISPLAY_NAMES.bugHotfix),
-      components: findBy(BUG_FIELD_DISPLAY_NAMES.components),
-      environment: findBy(BUG_FIELD_DISPLAY_NAMES.environment),
-      rca: findBy(BUG_FIELD_DISPLAY_NAMES.rca),
-      rcaDescription: findBy(BUG_FIELD_DISPLAY_NAMES.rcaDescription),
-    };
-  }, [isBug, typeFields.data]);
-
-  type CustomOriginal = Pick<
-    Draft,
-    'bugHotfix' | 'components' | 'environment' | 'rca' | 'rcaDescription'
-  >;
-  const customOriginal = useMemo<CustomOriginal | null>(() => {
-    if (!isBug || !full.data || !bugFields) return null;
-    const f = full.data.fields;
-    return {
-      bugHotfix: asString(
-        bugFields.bugHotfix ? f[bugFields.bugHotfix.referenceName] : '',
-      ),
-      components: asString(
-        bugFields.components ? f[bugFields.components.referenceName] : '',
-      ),
-      environment: splitTags(
-        asString(bugFields.environment ? f[bugFields.environment.referenceName] : ''),
-      ),
-      rca: asString(bugFields.rca ? f[bugFields.rca.referenceName] : ''),
-      rcaDescription: asString(
-        bugFields.rcaDescription ? f[bugFields.rcaDescription.referenceName] : '',
-      ),
-    };
-  }, [isBug, full.data, bugFields]);
-
-  const original = useMemo<Draft>(
+  const allControls = useMemo<FormControl[]>(
     () =>
-      customOriginal
-        ? {
-            ...baseOriginal,
-            bugHotfix: customOriginal.bugHotfix,
-            components: customOriginal.components,
-            environment: customOriginal.environment,
-            rca: customOriginal.rca,
-            rcaDescription: customOriginal.rcaDescription,
-          }
-        : baseOriginal,
-    [baseOriginal, customOriginal],
+      descriptor
+        ? [...descriptor.mainGroups, ...descriptor.sidebarGroups].flatMap(
+            (g) => g.controls,
+          )
+        : [],
+    [descriptor],
   );
 
-  // Reset draft whenever the modal is (re)opened for a task. We intentionally depend
-  // on baseOriginal (not `original`): if we keyed on `original`, the custom-field
-  // fetch resolving would reset any edits the user already made.
-  useEffect(() => {
-    setDraft(baseOriginal);
-    setError(null);
-  }, [baseOriginal, open]);
+  // Sidebar-only controls feed the pinning UI; HTML/long groups stay in the main
+  // area regardless of pin state.
+  const sidebarControls = useMemo<FormControl[]>(
+    () =>
+      descriptor ? descriptor.sidebarGroups.flatMap((g) => g.controls) : [],
+    [descriptor],
+  );
 
-  // One-shot hydration: when the Bug custom-field values arrive, merge them into the
-  // draft. Ref-guarded so the user doesn't get clobbered if they've edited something.
-  const customHydrated = useRef<number | null>(null);
+  const defaultPins = useMemo(
+    () => resolveDefaultPins(wiType, sidebarControls),
+    [wiType, sidebarControls],
+  );
+
+  const pinEntry = usePinnedFields((s) => s.byType[wiType]);
+  const pinField = usePinnedFields((s) => s.pin);
+  const unpinField = usePinnedFields((s) => s.unpin);
+  const pinnedSet = useMemo(
+    () => effectivePins(wiType, defaultPins, pinEntry),
+    [wiType, defaultPins, pinEntry],
+  );
+
+  // Original values for the layout-driven fields, derived from the full
+  // work-item payload. Null until the fetch lands — the dirty check treats that
+  // as "not yet hydrated" so Save stays disabled.
+  const layoutOriginal = useMemo<DraftRecord | null>(() => {
+    if (!full.data || allControls.length === 0) return null;
+    return buildInitialDraft(allControls, full.data.fields);
+  }, [full.data, allControls]);
+
+  const [layoutDraft, setLayoutDraft] = useState<DraftRecord>({});
+
+  // Reset the structural draft whenever the modal (re)opens for a task. Depends
+  // on `original` (the pure structural snapshot) so that later hydration of the
+  // layout fields doesn't clobber user edits in the structural area.
+  useEffect(() => {
+    setDraft(original);
+    setError(null);
+  }, [original, open]);
+
+  // One-shot hydration of layout draft once the layout + full-item fetches land.
+  // Ref-guarded per work-item id so resolving fetches after the user has already
+  // edited a layout field don't clobber those edits.
+  const layoutHydrated = useRef<number | null>(null);
   useEffect(() => {
     if (!open) {
-      customHydrated.current = null;
+      layoutHydrated.current = null;
+      setLayoutDraft({});
       return;
     }
-    if (!customOriginal) return;
-    if (customHydrated.current === task.workItem.id) return;
-    customHydrated.current = task.workItem.id;
-    setDraft((d) => ({
-      ...d,
-      bugHotfix: customOriginal.bugHotfix,
-      components: customOriginal.components,
-      environment: customOriginal.environment,
-      rca: customOriginal.rca,
-      rcaDescription: customOriginal.rcaDescription,
-    }));
-  }, [open, customOriginal, task.workItem.id]);
+    if (!layoutOriginal) return;
+    if (layoutHydrated.current === task.workItem.id) return;
+    layoutHydrated.current = task.workItem.id;
+    setLayoutDraft(layoutOriginal);
+  }, [open, layoutOriginal, task.workItem.id]);
 
-  const stateOptions = useMemo(
-    () => stateOptionsFor(columns, wiType, original.state),
-    [columns, wiType, original.state],
-  );
+  // Preferred source: the full state list from the work-item-type definition,
+  // which includes un-mapped states ("New", "Approved", …) that the column
+  // config wouldn't expose. Falls back to the column-derived set during the
+  // fetch or if it errors — so the dropdown always has *something*.
+  const statesFromType = useWorkItemStates(wiType, open);
+  const stateOptions = useMemo(() => {
+    if (statesFromType.data && statesFromType.data.length > 0) {
+      const out = [...statesFromType.data];
+      if (original.state && !out.includes(original.state)) out.push(original.state);
+      return out;
+    }
+    return stateOptionsFor(columns, wiType, original.state);
+  }, [statesFromType.data, columns, wiType, original.state]);
 
   // Pick the points field to write back to — whichever one currently holds a value,
   // or the template default for this work-item type.
@@ -440,26 +388,30 @@ export function WorkItemModal({
     [projectId, task.workItem.id],
   );
 
-  const dirty =
+  const layoutPatches = useMemo(
+    () =>
+      layoutOriginal ? diffDraft(allControls, layoutOriginal, layoutDraft) : [],
+    [allControls, layoutOriginal, layoutDraft],
+  );
+
+  const structuralDirty =
     draft.title !== original.title ||
     draft.state !== original.state ||
     (draft.assignee?.uniqueName ?? null) !== (original.assignee?.uniqueName ?? null) ||
     draft.storyPoints !== original.storyPoints ||
     !tagsEqual(draft.tags, original.tags) ||
-    draft.description !== original.description ||
-    draft.bugHotfix !== original.bugHotfix ||
-    draft.components !== original.components ||
-    draft.rca !== original.rca ||
-    draft.rcaDescription !== original.rcaDescription ||
-    !tagsEqual(draft.environment, original.environment);
+    draft.description !== original.description;
+
+  const dirty = structuralDirty || layoutPatches.length > 0;
 
   const save = useMutation({
     mutationFn: async () => {
       if (!projectId) throw new Error('Missing project');
-      const { patches, error } = buildPatches(original, draft, pointsField, bugFields);
+      const { patches, error } = buildPatches(original, draft, pointsField);
       if (error) throw new Error(error);
-      if (patches.length === 0) return null;
-      return patchWorkItemFields(projectId, task.workItem.id, patches);
+      const all = [...patches, ...layoutPatches];
+      if (all.length === 0) return null;
+      return patchWorkItemFields(projectId, task.workItem.id, all);
     },
     onMutate: () => {
       const prev = queryClient.getQueryData<TaskboardData>(queryKey);
@@ -469,32 +421,17 @@ export function WorkItemModal({
           applyDraftToTaskboard(prev, task.workItem.id, wiType, draft, pointsField),
         );
       }
-      // Also patch the full-workitem cache so custom-field edits survive a
-      // modal close/reopen without waiting for the refetch.
+      // Full-workitem cache gets every layout patch so modal close/reopen shows
+      // the edited value before the refetch lands.
       const prevFull = queryClient.getQueryData<AdoWorkItem>(fullKey);
-      if (prevFull && bugFields) {
+      if (prevFull && layoutPatches.length > 0) {
+        const merged = { ...prevFull.fields };
+        for (const p of layoutPatches) {
+          merged[p.field] = p.value ?? undefined;
+        }
         queryClient.setQueryData<AdoWorkItem>(fullKey, {
           ...prevFull,
-          fields: {
-            ...prevFull.fields,
-            ...(bugFields.bugHotfix && {
-              [bugFields.bugHotfix.referenceName]: draft.bugHotfix || undefined,
-            }),
-            ...(bugFields.components && {
-              [bugFields.components.referenceName]: draft.components || undefined,
-            }),
-            ...(bugFields.rca && {
-              [bugFields.rca.referenceName]: draft.rca || undefined,
-            }),
-            ...(bugFields.rcaDescription && {
-              [bugFields.rcaDescription.referenceName]: draft.rcaDescription || undefined,
-            }),
-            ...(bugFields.environment && {
-              [bugFields.environment.referenceName]: draft.environment.length
-                ? joinTags(draft.environment)
-                : undefined,
-            }),
-          },
+          fields: merged,
         });
       }
       return { prev, prevFull };
@@ -520,12 +457,21 @@ export function WorkItemModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const { error } = buildPatches(original, draft, pointsField, bugFields);
+    const { error } = buildPatches(original, draft, pointsField);
     if (error) {
       setError(error);
       return;
     }
+    const { error: vErr } = validateDraft(allControls, layoutDraft);
+    if (vErr) {
+      setError(vErr);
+      return;
+    }
     save.mutate();
+  }
+
+  function setLayoutField(ref: string, value: DraftValue) {
+    setLayoutDraft((d) => ({ ...d, [ref]: value }));
   }
 
   // Preload comments count for the tab badge (enabled only while modal is open).
@@ -605,17 +551,20 @@ export function WorkItemModal({
             />
           </Section>
 
-          {isBug && bugFields?.rcaDescription && (
-            <Section label="RCA Description">
-              <DescriptionField
-                value={draft.rcaDescription}
-                onChange={(html) =>
-                  setDraft((d) => ({ ...d, rcaDescription: html }))
-                }
-                placeholder="Add root-cause detail…"
-              />
-            </Section>
+          {(layout.isLoading || full.isLoading) && !descriptor && (
+            <div className="space-y-2">
+              <div className="h-3 w-28 rounded bg-white/[0.05] animate-pulse" />
+              <div className="h-24 rounded-md bg-white/[0.02] border border-white/[0.06] animate-pulse" />
+            </div>
           )}
+          {descriptor?.mainGroups.map((group) => (
+            <LayoutGroup
+              key={group.label + group.controls[0]?.referenceName}
+              group={group}
+              draft={layoutDraft}
+              onChange={setLayoutField}
+            />
+          ))}
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -681,25 +630,13 @@ export function WorkItemModal({
 
         <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-white/[0.06] bg-white/[0.015] px-4 py-4 space-y-4">
           <SidebarField label="Status">
-            <div className="relative">
-              <select
-                value={draft.state}
-                onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))}
-                className={cn(
-                  'appearance-none w-full h-8 rounded-md pl-3 pr-8 text-[13px] text-zinc-100',
-                  'bg-white/[0.03] border border-white/[0.08]',
-                  'focus-visible:outline-none focus-visible:border-indigo-400/40 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
-                  'transition-colors duration-150',
-                )}
-              >
-                {stateOptions.map((s) => (
-                  <option key={s} value={s} className="bg-[#141418] text-zinc-100">
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
-            </div>
+            <PicklistPicker
+              value={draft.state}
+              options={stateOptions}
+              onChange={(v) => setDraft((d) => ({ ...d, state: v }))}
+              clearable={false}
+              placeholder={statesFromType.isLoading ? 'Loading…' : '—'}
+            />
           </SidebarField>
           <SidebarField label="Assignee">
             <AssigneePicker
@@ -728,20 +665,6 @@ export function WorkItemModal({
               onChange={(tags) => setDraft((d) => ({ ...d, tags }))}
             />
           </SidebarField>
-          {isBug && (
-            <BugCustomFields
-              draft={draft}
-              setDraft={setDraft}
-              bugFields={bugFields}
-              loading={
-                !customOriginal &&
-                !typeFields.error &&
-                !full.error &&
-                (typeFields.isLoading || full.isLoading)
-              }
-              error={typeFields.error ?? full.error ?? null}
-            />
-          )}
           <SidebarField label="Time tracking">
             <div className="space-y-3">
               <TimeTracking
@@ -759,6 +682,93 @@ export function WorkItemModal({
               />
             </div>
           </SidebarField>
+          {(layout.isLoading || full.isLoading) && !descriptor && (
+            <>
+              <SidebarDivider />
+              <SidebarLoadingBlock />
+            </>
+          )}
+          {descriptor && pinnedSet.size > 0 && (
+            <>
+              <SidebarDivider />
+              <div className="space-y-4">
+                {sidebarControls
+                  .filter((c) => pinnedSet.has(c.referenceName))
+                  .map((control) => (
+                    <div key={control.referenceName} className="group">
+                      <FieldRow
+                        control={control}
+                        value={layoutDraft[control.referenceName] ?? null}
+                        onChange={(v) =>
+                          setLayoutField(control.referenceName, v)
+                        }
+                        action={
+                          <PinButton
+                            pinned
+                            label={control.displayName}
+                            onToggle={() =>
+                              unpinField(wiType, control.referenceName)
+                            }
+                          />
+                        }
+                      />
+                    </div>
+                  ))}
+              </div>
+            </>
+          )}
+          {descriptor &&
+            (() => {
+              const moreGroups = descriptor.sidebarGroups
+                .map((g) => ({
+                  ...g,
+                  controls: g.controls.filter(
+                    (c) => !pinnedSet.has(c.referenceName),
+                  ),
+                }))
+                .filter((g) => g.controls.length > 0);
+              const moreCount = moreGroups.reduce(
+                (acc, g) => acc + g.controls.length,
+                0,
+              );
+              if (moreCount === 0) return null;
+              return (
+                <>
+                  <SidebarDivider />
+                  <MoreFieldsSection count={moreCount}>
+                    <div className="space-y-4">
+                      {moreGroups.map((group) => (
+                        <LayoutGroup
+                          key={
+                            group.label + group.controls[0]?.referenceName
+                          }
+                          group={group}
+                          draft={layoutDraft}
+                          onChange={setLayoutField}
+                          renderAction={(control) => (
+                            <PinButton
+                              pinned={false}
+                              label={control.displayName}
+                              onToggle={() =>
+                                pinField(wiType, control.referenceName)
+                              }
+                            />
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </MoreFieldsSection>
+                </>
+              );
+            })()}
+          {(layout.error || full.error) && (
+            <>
+              <SidebarDivider />
+              <div className="text-[11px] text-red-300/80">
+                Couldn't load form layout. Core fields still editable.
+              </div>
+            </>
+          )}
         </aside>
       </div>
     </DraggableModal>
@@ -794,92 +804,102 @@ function CreatedByRow({ identity }: { identity: AdoIdentity | null }) {
   );
 }
 
-/** Bug-only custom fields block. Renders a loading state until the type-field schema
- *  AND the full work item payload have both landed — otherwise we'd flash empty
- *  pickers or not know the field reference names to write to. */
-function BugCustomFields({
+/** Render one layout-driven group (with its label header) as a stack of FieldRows.
+ *  Shared between the main area (HTML/long groups) and sidebar (short fields).
+ *  Empty groups never reach this component — the descriptor already filters those
+ *  out. */
+function LayoutGroup({
+  group,
   draft,
-  setDraft,
-  bugFields,
-  loading,
-  error,
+  onChange,
+  renderAction,
 }: {
-  draft: Draft;
-  setDraft: React.Dispatch<React.SetStateAction<Draft>>;
-  bugFields: BugFieldMap | null;
-  loading: boolean;
-  error: unknown;
+  group: import('@/ado/form').FormGroup;
+  draft: DraftRecord;
+  onChange: (ref: string, value: DraftValue) => void;
+  /** Per-row trailing action (typically the Pin/PinOff button). Wrapped in a
+   *  `group` container so the action can hover-reveal via `group-hover:*`. */
+  renderAction?: (control: FormControl) => React.ReactNode;
 }) {
-  if (loading) {
-    return (
-      <>
-        <SidebarField label="Bug / Hotfix">
-          <LoadingRow />
-        </SidebarField>
-        <SidebarField label="Environment">
-          <LoadingRow />
-        </SidebarField>
-        <SidebarField label="Components">
-          <LoadingRow />
-        </SidebarField>
-        <SidebarField label="Root cause">
-          <LoadingRow />
-        </SidebarField>
-      </>
+  // A group whose label echoes its single control's label is just visual noise —
+  // ADO's native form renders those as plain sections without a header. Only show
+  // the group header when it's meaningfully distinct from the fields inside.
+  const showHeader =
+    !!group.label &&
+    group.controls.length > 1 &&
+    !group.controls.some(
+      (c) => c.displayName.trim().toLowerCase() === group.label.trim().toLowerCase(),
     );
-  }
-  if (error) {
-    return (
-      <SidebarField label="Bug fields">
-        <div className="text-[11px] text-red-300/80">
-          Couldn't load Bug field schema.
+  return (
+    <div className="space-y-3">
+      {showHeader && (
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+          {group.label}
         </div>
-      </SidebarField>
-    );
-  }
+      )}
+      {group.controls.map((control) => (
+        <div key={control.referenceName} className="group">
+          <FieldRow
+            control={control}
+            value={draft[control.referenceName] ?? null}
+            onChange={(v) => onChange(control.referenceName, v)}
+            action={renderAction?.(control)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SidebarDivider() {
+  return <div className="h-px bg-white/[0.06] -mx-4" />;
+}
+
+/** Collapsible "MORE FIELDS (N)" section. Collapsed by default — the whole
+ *  point of the pinning UX is to keep the default sidebar quiet and let power
+ *  users expand when they need the long tail. */
+function MoreFieldsSection({
+  count,
+  children,
+}: {
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          'w-full flex items-center gap-1.5 py-1',
+          'text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500',
+          'hover:text-zinc-300 transition-colors',
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            'h-3 w-3 transition-transform duration-150',
+            open && 'rotate-90',
+          )}
+        />
+        <span>More fields</span>
+        <span className="mono text-zinc-600">({count})</span>
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
+
+function SidebarLoadingBlock() {
   return (
     <>
-      {bugFields?.bugHotfix && (
-        <SidebarField label="Bug / Hotfix">
-          <PicklistPicker
-            value={draft.bugHotfix}
-            options={bugFields.bugHotfix.allowedValues ?? []}
-            onChange={(v) => setDraft((d) => ({ ...d, bugHotfix: v }))}
-          />
-        </SidebarField>
-      )}
-      {bugFields?.environment && (
-        <SidebarField label="Environment">
-          <MultiPicklistPicker
-            values={draft.environment}
-            options={bugFields.environment.allowedValues ?? []}
-            onChange={(v) => setDraft((d) => ({ ...d, environment: v }))}
-            placeholder={
-              (bugFields.environment.allowedValues ?? []).length === 0
-                ? 'No values defined in ADO'
-                : 'None'
-            }
-          />
-        </SidebarField>
-      )}
-      {bugFields?.components && (
-        <SidebarField label="Components">
-          <PicklistPicker
-            value={draft.components}
-            options={bugFields.components.allowedValues ?? []}
-            onChange={(v) => setDraft((d) => ({ ...d, components: v }))}
-          />
-        </SidebarField>
-      )}
-      {bugFields?.rca && (
-        <SidebarField label="Root cause">
-          <PicklistPicker
-            value={draft.rca}
-            options={bugFields.rca.allowedValues ?? []}
-            onChange={(v) => setDraft((d) => ({ ...d, rca: v }))}
-          />
-        </SidebarField>
-      )}
+      <SidebarField label="Loading fields">
+        <LoadingRow />
+      </SidebarField>
+      <SidebarField label="">
+        <LoadingRow />
+      </SidebarField>
     </>
   );
 }
