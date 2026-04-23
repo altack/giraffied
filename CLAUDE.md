@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Project:** Jirafied — a Chrome MV3 extension that replaces Azure DevOps' sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes go directly to the ADO REST API from the extension page; no backend.
+**Project:** Giraffied — a Chrome MV3 extension that replaces Azure DevOps' sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes go directly to the ADO REST API from the extension page; no backend.
 
 See `STATUS.md` for phase status and what's in flight.
 
@@ -10,7 +10,7 @@ See `STATUS.md` for phase status and what's in flight.
 - `pnpm dev` — Vite dev server with HMR via `@crxjs/vite-plugin`
 - `pnpm typecheck` — just `tsc --noEmit`
 - Load: `chrome://extensions` → Developer mode → Load unpacked → pick `dist/`
-- **After each build, close the old Jirafied tab and open a fresh one.** Old tabs run stale bundles and look broken in ways that aren't your fault.
+- **After each build, close the old Giraffied tab and open a fresh one.** Old tabs run stale bundles and look broken in ways that aren't your fault.
 
 ## Stack
 
@@ -84,7 +84,7 @@ src/
 - Near-black canvas `#08080a`, surface `#141418`, hairline border `rgb(255 255 255 / 0.06)`. Defined in `globals.css` `@theme`.
 - `.lit-top` utility = `box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.05)` — the Linear "emerging from surface" card look. Use on cards, chips, onboarding panel.
 - `.mono` utility = mono font with `ss02 zero cv01` features. Use for work-item IDs and counts.
-- **Gradients only on the "Jirafied" wordmark.** Primary buttons are pearled/glass (`bg-white/[0.09] backdrop-blur-xl border border-white/[0.14] lit-top`) — the previous indigo→violet gradient was AI-slop-y and was removed in the Phase 6 polish pass. Don't add gradients anywhere else.
+- **Gradients only on the "Giraffied" wordmark.** Primary buttons are pearled/glass (`bg-white/[0.09] backdrop-blur-xl border border-white/[0.14] lit-top`) — the previous indigo→violet gradient was AI-slop-y and was removed in the Phase 6 polish pass. Don't add gradients anywhere else.
 - Work-item type is rendered as **colored dot + short label**, not a filled pill. Colors in `workItemVisuals.ts`.
 - Avatars use a deterministic 8-tone muted palette (`AVATAR_PALETTE` in `workItemVisuals.ts`), not full-saturation HSL.
 - Swimlane row order (until user-reorder lands): `Feature (0) → Epic (1) → Story/PBI/Issue (2) → Task (3) → Bug (4)`, alphabetical within tier.

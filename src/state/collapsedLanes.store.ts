@@ -53,7 +53,7 @@ export const useCollapsedLanes = create<CollapsedLanesState>()(
         })),
     }),
     {
-      name: 'jirafied-collapsed-lanes',
+      name: 'giraffied-collapsed-lanes',
       storage: createJSONStorage(() => chromeLocalStorage),
     },
   ),

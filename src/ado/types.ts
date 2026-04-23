@@ -244,7 +244,7 @@ export interface AdoFormPage {
   visible?: boolean;
   order?: number;
   /** "custom" is the main editable tab; "history" / "links" / "attachments" are
-   *  non-form. Jirafied only reads controls from `custom` pages. */
+   *  non-form. Giraffied only reads controls from `custom` pages. */
   pageType?: string;
   sections: AdoFormSection[];
   inherited?: boolean;

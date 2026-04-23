@@ -3,11 +3,11 @@ import pkg from '../package.json' with { type: 'json' };
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'Jirafied — Modern Sprint Board for Azure DevOps',
+  name: 'Giraffied — Modern Sprint Board for Azure DevOps',
   version: pkg.version,
   description: pkg.description,
   action: {
-    default_title: 'Open Jirafied',
+    default_title: 'Open Giraffied',
   },
   background: {
     service_worker: 'src/background/service-worker.ts',

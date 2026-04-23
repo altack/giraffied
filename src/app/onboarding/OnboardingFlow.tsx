@@ -101,13 +101,13 @@ export function OnboardingFlow() {
       <div className="relative w-full max-w-md space-y-7">
         <header className="space-y-2">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
-            Jirafied 🦒
+            Giraffied 🦒
           </div>
           <h1 className="text-[22px] font-semibold tracking-tight leading-tight">
             Connect to Azure DevOps
           </h1>
           <p className="text-[13px] text-zinc-500 leading-relaxed">
-            Jirafied talks directly to the Azure DevOps REST API from your browser. Nothing goes
+            Giraffied talks directly to the Azure DevOps REST API from your browser. Nothing goes
             through a server.
           </p>
         </header>

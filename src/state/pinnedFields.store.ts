@@ -44,7 +44,7 @@ export const usePinnedFields = create<PinnedFieldsState>()(
         }),
     }),
     {
-      name: 'jirafied-pinned-fields',
+      name: 'giraffied-pinned-fields',
       storage: createJSONStorage(() => chromeLocalStorage),
     },
   ),

@@ -189,7 +189,7 @@ function pickWidget(
 
 /** Walk the work-item-type's form layout and produce our render descriptor.
  *  All visible `custom` pages are aggregated — history/links/attachments pages
- *  are replaced by Jirafied's own Activity tabs. Hidden groups/controls and
+ *  are replaced by Giraffied's own Activity tabs. Hidden groups/controls and
  *  structural fields (Title, State, Assignee, Description, Tags, points, …) are
  *  filtered out so the descriptor only carries the *extra* fields the team
  *  added. */

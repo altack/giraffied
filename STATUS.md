@@ -1,4 +1,4 @@
-# Jirafied — Status
+# Giraffied — Status
 
 Last worked on: **2026-04-23** (Phase 10 sidebar polish — Core / Pinned / More collapsible)
 
@@ -26,7 +26,7 @@ A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azu
 
 ### Polish layered on top of Phase 3 ✅
 - Linear/Sentry visual language: Inter Variable, near-black canvas (`#08080a`), hairline borders `rgb(255 255 255 / 0.06)`, `.lit-top` inset highlight utility
-- Gradients used **only** on the "Jirafied" wordmark and the primary `Button` variant
+- Gradients used **only** on the "Giraffied" wordmark and the primary `Button` variant
 - Sticky column header row with `backdrop-blur-lg` (fixed via `h-screen` + `overflow-hidden` on Board so the grid owns the scroll)
 - Pill-style column headers, per-track rounded column cells, horizontal swimlane banners
 - Collapsible swimlanes (chevron rotates −90°); collapse state **persisted per sprint** in `chrome.storage.local` via `collapsedLanes.store.ts`
@@ -203,6 +203,6 @@ Hairline dividers (`border-white/[0.06]` full-width via `-mx-4`) separate the zo
 - Commits: `feat|fix|style|chore|perf: short summary` + body paragraph + Co-Authored-By.
 - Branch: `master`. Don't force-push. Don't skip hooks / bypass signing.
 - `.claude/settings.local.json` is gitignored.
-- After each build, close the old Jirafied tab and open a fresh one — old tabs run stale bundles.
+- After each build, close the old Giraffied tab and open a fresh one — old tabs run stale bundles.
 
 See `CLAUDE.md` for durable project context + ADO gotchas.

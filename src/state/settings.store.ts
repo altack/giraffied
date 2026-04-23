@@ -47,7 +47,7 @@ export const useSettings = create<SettingsState>()(
         }),
     }),
     {
-      name: 'jirafied-settings',
+      name: 'giraffied-settings',
       storage: createJSONStorage(() => chromeLocalStorage),
     },
   ),
