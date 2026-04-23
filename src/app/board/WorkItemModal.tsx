@@ -1194,7 +1194,12 @@ function TagsEditor({
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-0.5 rounded bg-white/[0.06] pl-2 pr-0.5 py-0.5 text-[11px] text-zinc-200 lit-top"
+          className={cn(
+            'inline-flex items-center gap-0.5 rounded bg-white/[0.06] py-0.5 text-[11px] text-zinc-200 lit-top',
+            // Extra right padding when the × button isn't there, so the label
+            // doesn't sit flush against the rounded edge.
+            readOnly ? 'px-2' : 'pl-2 pr-0.5',
+          )}
         >
           {tag}
           {!readOnly && (

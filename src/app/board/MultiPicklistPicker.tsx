@@ -135,7 +135,12 @@ export function MultiPicklistPicker({
       {values.map((v) => (
         <span
           key={v}
-          className="inline-flex items-center gap-0.5 rounded bg-white/[0.06] pl-2 pr-0.5 py-0.5 text-[11px] text-zinc-200 lit-top"
+          className={cn(
+            'inline-flex items-center gap-0.5 rounded bg-white/[0.06] py-0.5 text-[11px] text-zinc-200 lit-top',
+            // Even right padding when the × button isn't rendered, so the label
+            // doesn't sit flush against the rounded edge.
+            disabled ? 'px-2' : 'pl-2 pr-0.5',
+          )}
         >
           {v}
           {!disabled && (
