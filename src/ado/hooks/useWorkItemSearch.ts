@@ -7,6 +7,7 @@ import {
   queryWiql,
 } from '@/ado/endpoints';
 import type { AdoWorkItem } from '@/ado/types';
+import { useOrgFields } from '@/ado/hooks/useOrgFields';
 import { useSettings } from '@/state/settings.store';
 
 export type SearchScope = 'sprint' | 'team' | 'project' | 'org';
@@ -26,14 +27,38 @@ const MIN_QUERY_LEN = 2;
 const DEBOUNCE_MS = 220;
 const MAX_RESULTS = 40;
 
+/** Text fields we try to include in the CONTAINS clause. Which of these are
+ *  actually usable depends on the org's field registry — WIQL 400s if you
+ *  reference a field that doesn't exist in the queried scope. The hook
+ *  filters this list against `useOrgFields().byRef` at query time.
+ *
+ *  Order matters for how we document behavior to the user, but doesn't
+ *  affect WIQL execution (CONTAINS is evaluated against whichever row
+ *  matches first anyway). Title/Description/Tags are effectively universal;
+ *  Repro Steps / System Info / Acceptance Criteria are on standard template
+ *  WITs (Bug, Story/PBI/Issue) but might be missing in very custom orgs.
+ *
+ *  Note: WIQL cannot query comments — they live in a separate entity and
+ *  aren't indexed by the query engine. For comment-aware search we'd need
+ *  the almsearch.dev.azure.com Work Item Search API, which also needs an
+ *  extra host permission in the manifest. */
+const SEARCH_TEXT_FIELDS = [
+  'System.Title',
+  'System.Description',
+  'System.Tags',
+  'Microsoft.VSTS.TCM.ReproSteps',
+  'Microsoft.VSTS.TCM.SystemInfo',
+  'Microsoft.VSTS.Common.AcceptanceCriteria',
+] as const;
+
 /** WIQL single-quote strings use doubled single-quotes for escapes. */
 function wiqlEscape(s: string): string {
   return s.replace(/'/g, "''");
 }
 
 /** Parse a user query — if it's a bare number (optionally prefixed with `#`),
- *  we AND a `[System.Id] = N` clause OR'd with the title match, so entering a
- *  work-item id jumps straight to that card. */
+ *  we AND a `[System.Id] = N` clause OR'd with the text matches, so entering
+ *  a work-item id jumps straight to that card. */
 function parseIdQuery(q: string): number | null {
   const m = q.trim().match(/^#?(\d{1,10})$/);
   if (!m) return null;
@@ -41,12 +66,20 @@ function parseIdQuery(q: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function buildWiql(query: string, scopeClause: string | null): string {
+function buildWiql(
+  query: string,
+  scopeClause: string | null,
+  fields: readonly string[],
+): string {
   const q = wiqlEscape(query);
   const idMatch = parseIdQuery(query);
-  const textClause = idMatch
-    ? `([System.Title] CONTAINS '${q}' OR [System.Id] = ${idMatch})`
-    : `[System.Title] CONTAINS '${q}'`;
+
+  // OR together every `[field] CONTAINS 'q'` we have. Title is guaranteed
+  // present; the rest depend on the filtered candidate list.
+  const textParts = fields.map((f) => `[${f}] CONTAINS '${q}'`);
+  if (idMatch != null) textParts.push(`[System.Id] = ${idMatch}`);
+  const textClause = `(${textParts.join(' OR ')})`;
+
   const where = [
     `[System.State] <> 'Removed'`,
     textClause,
@@ -76,9 +109,22 @@ export function useWorkItemSearch(
   const projectId = useSettings((s) => s.projectId);
   const teamId = useSettings((s) => s.teamId);
   const projectName = useSettings((s) => s.projectName);
+  const orgFields = useOrgFields();
 
   const debouncedQuery = useDebounced(rawQuery.trim(), DEBOUNCE_MS);
   const canRun = enabled && debouncedQuery.length >= MIN_QUERY_LEN;
+
+  // Which candidate text fields actually exist in this org — anything not in
+  // the org-field registry would make WIQL 400. Title is universal so we
+  // always include it even if the registry hasn't loaded yet (the first
+  // keystroke would otherwise fire a query with no text clause and match
+  // everything).
+  const availableFields = useMemo<readonly string[]>(() => {
+    const byRef = orgFields.data?.byRef;
+    if (!byRef) return ['System.Title'];
+    const filtered = SEARCH_TEXT_FIELDS.filter((f) => byRef.has(f));
+    return filtered.length > 0 ? filtered : ['System.Title'];
+  }, [orgFields.data]);
 
   // For team scope we need the team's default area path; fetched lazily and
   // cached for an hour. Cheap — one call per session.
@@ -98,6 +144,11 @@ export function useWorkItemSearch(
         projectId,
         scope === 'sprint' ? context.iterationPath ?? null : null,
         scope === 'team' ? teamAreaQuery.data?.defaultValue ?? null : null,
+        // Bake the available-field list into the key: when orgFields finally
+        // lands and widens the field set from ['System.Title'] to the full
+        // list, the cached result under the narrower key stays but a fresh
+        // broader search runs under the new key.
+        availableFields.join(','),
       ] as const,
     [
       scope,
@@ -105,6 +156,7 @@ export function useWorkItemSearch(
       projectId,
       context.iterationPath,
       teamAreaQuery.data?.defaultValue,
+      availableFields,
     ],
   );
 
@@ -142,7 +194,7 @@ export function useWorkItemSearch(
         scopeClause = null;
       }
 
-      const wiql = buildWiql(debouncedQuery, scopeClause);
+      const wiql = buildWiql(debouncedQuery, scopeClause, availableFields);
       const res = await queryWiql(
         wiql,
         useProjectEndpoint ? projectId : undefined,
