@@ -60,6 +60,21 @@ export function ParentPicker({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
+  // Capture-phase Escape so the popover closes without bubbling to the modal's
+  // window-level Escape handler (which would close the whole dialog).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      setOpen(false);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open]);
+
   const results = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return swimlanes;
