@@ -8,6 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { cn } from '@/lib/cn';
 import { EditorToolbar } from './EditorToolbar';
 import { attachmentKindOf } from './attachments';
+import { convertMarkdownImages } from './markdownImg';
 
 type EditorVariant = 'default' | 'plain' | 'minimal';
 
@@ -228,7 +229,9 @@ export function DescriptionEditor({
       DeletableImage.configure({ inline: true, allowBase64: false }),
       Placeholder.configure({ placeholder }),
     ],
-    content: value,
+    // Pre-rewrite markdown image syntax to <img> so Tiptap parses real images
+    // on initial mount; otherwise `![alt](url)` would arrive as plain text.
+    content: convertMarkdownImages(value),
     autofocus: autoFocus ? 'end' : false,
     // Recommended for SSR-safe and HMR-stable mount; we also need it to avoid
     // a flash of unparsed HTML on the very first render in a fresh modal.
@@ -317,15 +320,20 @@ export function DescriptionEditor({
 
   // Push external value changes (form reset, switching task) into the editor,
   // but skip when the value already matches what we'd emit — comparing avoids
-  // the cursor-reset that happens whenever setContent runs.
+  // the cursor-reset that happens whenever setContent runs. Compare against
+  // the *transformed* value: the editor's getHTML() returns img tags, while
+  // the incoming value may still carry markdown image syntax — without the
+  // transform here, those would never compare equal and we'd reset the cursor
+  // on every render.
   useEffect(() => {
     if (!editor) return;
     const current = editor.getHTML();
-    if (current === value) return;
+    const next = convertMarkdownImages(value);
+    if (current === next) return;
     // emitUpdate:false skips the onUpdate callback so we don't loop on our own
     // value prop. (Tiptap v3 changed this from a positional boolean to an
     // options object.)
-    editor.commands.setContent(value || '', { emitUpdate: false });
+    editor.commands.setContent(next || '', { emitUpdate: false });
   }, [editor, value]);
 
   const showToolbar = variant === 'default' || unlocked;

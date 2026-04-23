@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { convertMarkdownImages } from './markdownImg';
 
 // Anchors pointing at these extensions are upgraded to inline <video controls>
 // after the HTML mounts. ADO doesn't emit <video> from Trix; it stores video
@@ -30,6 +31,9 @@ export function RichTextRenderer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [lightbox, setLightbox] = useState<{ items: Media[]; index: number } | null>(null);
+  // Bare-minimum handling for content stored in markdown form: rewrite
+  // `![alt](url)` to `<img>` so images at least render. No full markdown.
+  const renderedHtml = useMemo(() => convertMarkdownImages(html), [html]);
 
   // After each html change, walk anchors and replace video-extension ones with
   // a real <video> element. Idempotent via a data attribute so re-renders with
@@ -49,7 +53,7 @@ export function RichTextRenderer({
       video.className = 'jfd-rt-video';
       a.replaceWith(video);
     });
-  }, [html]);
+  }, [renderedHtml]);
 
   const onClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
@@ -95,7 +99,7 @@ export function RichTextRenderer({
         // ADO-stored HTML, trusted (auth'd org content; same provenance the
         // native ADO UI renders).
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: renderedHtml }}
       />
       {lightbox && (
         <Lightbox
