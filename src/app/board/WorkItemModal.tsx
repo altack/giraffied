@@ -676,22 +676,30 @@ export function WorkItemModal({
             </Section>
           )}
 
-          {(layout.isLoading || full.isLoading) && !descriptor && (
-            <div className="space-y-2">
-              <div className="h-3 w-28 rounded bg-white/[0.05] animate-pulse" />
-              <div className="h-24 rounded-md bg-white/[0.02] border border-white/[0.06] animate-pulse" />
-            </div>
-          )}
-          {descriptor?.mainGroups.map((group) => (
-            <LayoutGroup
-              key={group.label + group.controls[0]?.referenceName}
-              group={group}
-              draft={layoutDraft}
-              onChange={setLayoutField}
-              uploadFile={uploadFile}
-              disabled={readOnly}
-            />
-          ))}
+          {/* Show skeleton until BOTH the descriptor and the full work-item
+              payload are ready. Rendering LayoutGroups before `full.data`
+              lands would paint empty HTML widgets under their labels — the
+              draft is still `{}` because `layoutOriginal` hasn't hydrated
+              yet (see the useEffect downstream). */}
+          {(layout.isLoading || full.isLoading) &&
+            (!descriptor || !layoutOriginal) && (
+              <div className="space-y-2">
+                <div className="h-3 w-28 rounded bg-white/[0.05] animate-pulse" />
+                <div className="h-24 rounded-md bg-white/[0.02] border border-white/[0.06] animate-pulse" />
+              </div>
+            )}
+          {descriptor &&
+            layoutOriginal &&
+            descriptor.mainGroups.map((group) => (
+              <LayoutGroup
+                key={group.label + group.controls[0]?.referenceName}
+                group={group}
+                draft={layoutDraft}
+                onChange={setLayoutField}
+                uploadFile={uploadFile}
+                disabled={readOnly}
+              />
+            ))}
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -828,7 +836,7 @@ export function WorkItemModal({
               <SidebarLoadingBlock />
             </>
           )}
-          {descriptor && pinnedSet.size > 0 && (
+          {descriptor && layoutOriginal && pinnedSet.size > 0 && (
             <>
               <SidebarDivider />
               <div className="space-y-4">
@@ -862,6 +870,7 @@ export function WorkItemModal({
             </>
           )}
           {descriptor &&
+            layoutOriginal &&
             (() => {
               const moreGroups = descriptor.sidebarGroups
                 .map((g) => ({

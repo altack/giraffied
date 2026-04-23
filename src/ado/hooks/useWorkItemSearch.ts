@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   getTeamFieldValues,
   getWorkItemsBatch,
@@ -76,7 +76,6 @@ export function useWorkItemSearch(
   const projectId = useSettings((s) => s.projectId);
   const teamId = useSettings((s) => s.teamId);
   const projectName = useSettings((s) => s.projectName);
-  const queryClient = useQueryClient();
 
   const debouncedQuery = useDebounced(rawQuery.trim(), DEBOUNCE_MS);
   const canRun = enabled && debouncedQuery.length >= MIN_QUERY_LEN;
@@ -165,11 +164,14 @@ export function useWorkItemSearch(
         if (w) ordered.push(w);
       }
 
-      // Prime the per-item cache so clicking a result doesn't have to refetch
-      // before the modal can render something useful.
-      for (const w of ordered) {
-        queryClient.setQueryData(['workitem-full', projectId, w.id], w);
-      }
+      // Deliberately NOT priming the `['workitem-full', …]` cache here. The
+      // batch fetch only asks for DEFAULT_WORKITEM_FIELDS, which omits
+      // things like Repro Steps / Acceptance Criteria / relations that the
+      // modal's layout-driven form needs. Priming would satisfy
+      // useWorkItemFull's 30s staleTime with a partial record and the
+      // custom HTML fields would render empty with no visible refetch.
+      // The modal's own fetch (~300ms) is a better tradeoff than a
+      // permanently-empty form.
       return ordered;
     },
     enabled: scopeReady,
