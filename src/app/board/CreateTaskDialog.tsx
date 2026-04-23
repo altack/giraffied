@@ -14,10 +14,16 @@ import { AdoError } from '@/ado/client';
 import {
   createWorkItem,
   getTeamFieldValues,
+  uploadAttachment,
 } from '@/ado/endpoints';
 import type {
   AdoFieldValue,
 } from '@/ado/endpoints';
+import {
+  filenameFromAttachmentUrl,
+  newAttachmentUrls,
+} from './attachments';
+import type { UploadedAttachment } from './DescriptionEditor.lazy';
 import type {
   AdoIdentity,
   AdoTaskboardColumn,
@@ -80,6 +86,23 @@ export function CreateTaskDialog({
   const [draft, setDraft] = useState<Draft>(() => initialDraft(defaultParentId));
   const [error, setError] = useState<string | null>(null);
 
+  // Scoped upload callback for the description editor. The new task doesn't
+  // exist yet, so attachments are uploaded standalone; the URLs end up in the
+  // description HTML, and the create call appends them as /relations/- ops in
+  // the same JSON-Patch body.
+  const uploadFile = useCallback(
+    async (file: File): Promise<UploadedAttachment> => {
+      if (!projectId) throw new Error('Missing project');
+      const { url } = await uploadAttachment(projectId, file.name, file);
+      return {
+        url,
+        name: file.name,
+        kind: file.type.startsWith('video/') ? 'video' : 'image',
+      };
+    },
+    [projectId],
+  );
+
   // Reset when the dialog (re)opens from a different lane.
   useEffect(() => {
     if (open) {
@@ -128,7 +151,21 @@ export function CreateTaskDialog({
         fields['System.Description'] = draft.description;
       }
 
-      return createWorkItem(projectId, 'Task', fields, selectedParent?.url);
+      // Bind any newly-uploaded attachments embedded in the description HTML
+      // — without a relation, ADO eventually GCs the orphan blob.
+      const newUrls = newAttachmentUrls('', draft.description);
+      const addAttachments = newUrls.map((url) => ({
+        url,
+        name: filenameFromAttachmentUrl(url),
+      }));
+
+      return createWorkItem(
+        projectId,
+        'Task',
+        fields,
+        selectedParent?.url,
+        addAttachments.length > 0 ? addAttachments : undefined,
+      );
     },
     onError: (err) => {
       setError(
@@ -255,6 +292,7 @@ export function CreateTaskDialog({
           <DescriptionEditor
             value={draft.description}
             onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
+            uploadFile={uploadFile}
             variant="plain"
             placeholder="Add a description…"
           />

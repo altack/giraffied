@@ -53,178 +53,107 @@ body {
   font-feature-settings: "ss02", "zero", "cv01";
 }
 
-/* --- Trix editor overrides -------------------------------------------------
- * Trix ships with a light-theme CSS baseline (toolbar icons as SVG masks, basic
- * layout). We keep the icons + layout but re-theme colors to match the pearled
- * dark aesthetic. The `.jfd-trix` wrapper scopes these rules so they can't
- * leak into other trix instances if ever mounted. */
-.jfd-trix trix-toolbar {
-  display: block;
-  padding: 4px;
-  border-bottom: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(255 255 255 / 0.015);
-}
-.jfd-trix trix-toolbar .trix-button-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-.jfd-trix trix-toolbar .trix-button-group {
-  display: inline-flex;
-  gap: 2px;
-  margin: 0;
-  padding: 0 4px;
-  border: 0;
-  border-radius: 0;
-  border-right: 1px solid rgb(255 255 255 / 0.05);
-}
-.jfd-trix trix-toolbar .trix-button-group:last-child { border-right: 0; }
-.jfd-trix trix-toolbar .trix-button-group--file-tools { display: none; }
-.jfd-trix trix-toolbar .trix-button {
-  height: 24px;
-  width: 26px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #8a8a95;
-  border-radius: 4px;
-  transition: background-color 120ms, color 120ms;
-}
-.jfd-trix trix-toolbar .trix-button::before {
-  /* Trix ships each icon as a data-URI SVG with a hardcoded black fill (`fill='%23000'`).
-   * `color` doesn't apply — the icon is a background-image, not currentColor text.
-   * Inverting the ::before turns the black fill into near-white against our dark toolbar. */
-  filter: invert(0.92);
-  opacity: 0.85;
-  top: 4px; right: 4px; bottom: 4px; left: 4px;
-}
-.jfd-trix trix-toolbar .trix-button:not([disabled]):hover {
-  background: rgb(255 255 255 / 0.05);
-}
-.jfd-trix trix-toolbar .trix-button:not([disabled]):hover::before {
-  filter: invert(1);
-  opacity: 1;
-}
-.jfd-trix trix-toolbar .trix-button.trix-active {
-  background: rgb(129 140 248 / 0.14);
-}
-.jfd-trix trix-toolbar .trix-button.trix-active::before {
-  /* Inverting from black produces a cool-white; tint toward indigo for the active state. */
-  filter: invert(1) sepia(0.3) hue-rotate(210deg) saturate(1.8);
-  opacity: 1;
-}
-.jfd-trix trix-toolbar .trix-button[disabled] { opacity: 1; }
-.jfd-trix trix-toolbar .trix-button[disabled]::before { opacity: 0.3; }
-.jfd-trix trix-toolbar .trix-dialogs { position: relative; }
-.jfd-trix trix-toolbar .trix-dialog {
-  background: var(--color-surface-2);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 6px;
-  padding: 8px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
-}
-.jfd-trix trix-toolbar .trix-input--dialog {
-  background: rgb(255 255 255 / 0.03);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  color: #e6e6ea;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  min-height: 26px;
-}
-.jfd-trix trix-toolbar .trix-button--dialog {
-  background: rgb(255 255 255 / 0.05);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  color: #e6e6ea;
-  border-radius: 4px;
-  font-size: 11px;
-  padding: 2px 8px;
-  height: 26px;
-}
-
-.jfd-trix trix-editor {
-  display: block;
-  min-height: 120px;
-  max-height: 280px;
+/* --- Tiptap editor (DescriptionEditor) ---------------------------------------
+ * Tiptap renders a plain contenteditable, so styling is pure CSS — no
+ * library-specific shadow DOM or `::before` masks to fight. Most of the body
+ * styling is shared with the read-only renderer via .jfd-description-body
+ * (applied alongside .jfd-tt-content), which keeps view ↔ edit visually identical. */
+.jfd-tt-content {
+  min-height: 40px;
+  max-height: 360px;
   overflow-y: auto;
-  padding: 10px 12px;
   color: var(--color-ink);
   font-size: 13px;
   line-height: 1.5;
-  outline: none;
-  border: 0;
-  background: transparent;
 }
-.jfd-trix trix-editor:empty::before {
+/* ProseMirror's placeholder is rendered via a CSS-attribute-on-empty-paragraph
+ * trick added by the Placeholder extension. */
+.jfd-tt-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
   color: var(--color-ink-dim);
-  font-style: normal;
-  content: attr(placeholder);
 }
-.jfd-trix .trix-content h1 { font-size: 15px; font-weight: 600; margin: 6px 0; color: var(--color-ink); }
-.jfd-trix .trix-content blockquote {
-  border-left: 2px solid rgb(255 255 255 / 0.14);
-  padding-left: 10px;
-  color: var(--color-ink-muted);
-  margin: 6px 0;
-}
-.jfd-trix .trix-content pre {
-  background: rgb(255 255 255 / 0.04);
-  border: 1px solid rgb(255 255 255 / 0.06);
-  border-radius: 4px;
-  padding: 8px 10px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  overflow-x: auto;
-}
-.jfd-trix .trix-content a {
-  color: var(--color-accent);
-  text-decoration: underline;
-  text-decoration-color: rgb(129 140 248 / 0.4);
-  text-underline-offset: 2px;
-}
-/* Tailwind v4's preflight sets `list-style: none` on ul/ol project-wide. Rich-text
- * surfaces need the markers back — set them explicitly within each scope. */
-.jfd-trix .trix-content ul, .jfd-trix .trix-content ol { padding-left: 20px; margin: 4px 0; }
-.jfd-trix .trix-content ul { list-style-type: disc; }
-.jfd-trix .trix-content ol { list-style-type: decimal; }
-.jfd-trix .trix-content li { padding-left: 2px; }
-.jfd-trix .trix-content ul ul { list-style-type: circle; }
-.jfd-trix .trix-content ul ul ul { list-style-type: square; }
 
-/* --- Variants: plain (description) + minimal (comment composer) ---------
- * Both hide the toolbar until the editor is focused, matching the click-to-edit
- * pattern of the title. Using :focus-within avoids any React gymnastics. */
-.jfd-trix--plain trix-toolbar,
-.jfd-trix--minimal trix-toolbar {
-  display: none;
+/* DeletableImage nodeView — hover surfaces a × button, NodeSelection gives
+ * a soft two-tone ring + drop shadow so the user sees that Backspace/Delete
+ * will remove the image. Using box-shadow (not outline) keeps the ring
+ * flush against the image's rounded corners. */
+.jfd-tt-image-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  border-radius: 6px;
+  transition: box-shadow 160ms ease-out;
 }
-.jfd-trix--plain:focus-within trix-toolbar,
-.jfd-trix--minimal:focus-within trix-toolbar {
+.jfd-tt-image-wrap img {
   display: block;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: filter 140ms ease;
+}
+.jfd-tt-image-wrap:hover img {
+  filter: brightness(0.94);
+}
+.jfd-tt-image-wrap.ProseMirror-selectednode {
+  box-shadow:
+    0 0 0 1.5px var(--color-accent),
+    0 0 0 5px rgb(129 140 248 / 0.18),
+    0 8px 22px -8px rgb(0 0 0 / 0.55);
+}
+.jfd-tt-image-wrap.ProseMirror-selectednode img {
+  filter: brightness(0.96);
 }
 
-/* Once any editor in a modal has been focused, every plain/minimal editor in
- * that modal keeps its toolbar visible for the rest of the session. This kills
- * the click-race where a blur collapses the toolbar mid-click and buttons move
- * out from under the cursor. The React side opts in by adding `jfd-trix--open`. */
-.jfd-trix--plain.jfd-trix--open trix-toolbar,
-.jfd-trix--minimal.jfd-trix--open trix-toolbar {
-  display: block;
+.jfd-tt-image-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(20 20 24 / 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: rgb(244 244 245);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background-color 140ms,
+    border-color 140ms,
+    color 140ms;
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.08),
+    0 4px 12px -2px rgb(0 0 0 / 0.45);
 }
-
-/* Plain variant: looks like prose until you click it. */
-.jfd-trix--plain trix-editor {
-  min-height: 40px;
-  padding: 8px 10px;
+.jfd-tt-image-wrap:hover .jfd-tt-image-delete,
+.jfd-tt-image-wrap.ProseMirror-selectednode .jfd-tt-image-delete,
+.jfd-tt-image-wrap:focus-within .jfd-tt-image-delete {
+  opacity: 1;
+  transform: translateY(0);
 }
-.jfd-trix--plain trix-editor:empty::before {
-  opacity: 0.7;
+.jfd-tt-image-delete:hover {
+  background: rgb(185 28 28 / 0.92);
+  border-color: rgb(239 68 68 / 0.45);
+  color: #fff;
 }
-
-/* Minimal variant: slimmer default size for comment composers. */
-.jfd-trix--minimal trix-editor {
-  min-height: 60px;
+.jfd-tt-image-delete:active {
+  transform: translateY(0) scale(0.94);
+}
+.jfd-tt-image-delete:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 
@@ -322,6 +251,21 @@ body {
 .jfd-description-body h2 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .jfd-description-body h3, .jfd-description-body h4 {
   font-size: 13px; font-weight: 600; margin: 6px 0 2px;
+}
+
+/* RichTextRenderer-specific affordances. The .jfd-rt class is added by the
+ * renderer regardless of caller-supplied className, so these rules apply on
+ * top of .jfd-comment-body / .jfd-description-body. */
+.jfd-rt img { cursor: zoom-in; }
+.jfd-rt a { cursor: pointer; }
+.jfd-rt video,
+.jfd-rt .jfd-rt-video {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  margin: 6px 0;
+  border-radius: 6px;
+  background: #000;
 }
 
 

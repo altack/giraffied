@@ -5,6 +5,7 @@ import { AssigneePicker } from '../AssigneePicker';
 import { DescriptionField } from '../DescriptionField';
 import { MultiPicklistPicker } from '../MultiPicklistPicker';
 import { PicklistPicker } from '../PicklistPicker';
+import { RichTextRenderer } from '../RichTextRenderer';
 import type { WidgetProps } from './types';
 
 const POSITIVE_OR_SIGNED = /^-?\d*\.?\d*$/;
@@ -64,12 +65,13 @@ export function HtmlWidget({
   onChange,
   disabled,
   control,
+  uploadFile,
 }: WidgetProps<string>) {
   if (disabled || control.readOnly) {
     return (
-      <div
-        className="prose prose-invert text-[13px] text-zinc-300 max-w-none"
-        dangerouslySetInnerHTML={{ __html: value ?? '' }}
+      <RichTextRenderer
+        html={value ?? ''}
+        className="jfd-description-body text-[13px] text-zinc-300 max-w-none"
       />
     );
   }
@@ -77,6 +79,7 @@ export function HtmlWidget({
     <DescriptionField
       value={value ?? ''}
       onChange={onChange}
+      uploadFile={uploadFile}
       placeholder={`Add ${control.displayName.toLowerCase()}…`}
     />
   );

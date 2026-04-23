@@ -1,24 +1,25 @@
 import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import { DescriptionEditor } from './DescriptionEditor';
+import type { UploadedAttachment } from './DescriptionEditor.lazy';
+import { RichTextRenderer } from './RichTextRenderer';
 
 /** Wrapper that presents the description as **rendered HTML** by default and only
- *  mounts Trix when the user clicks to edit. Trix is lossy on `loadHTML` (it drops
- *  tables, images, inline styles, underline, h2+, etc.) so keeping view-mode
- *  pure-HTML preserves ADO's original fidelity until an actual edit starts.
+ *  mounts the editor when the user clicks to edit.
  *
- *  Once in edit mode we stay there for the rest of the modal's life — clicking
- *  outside or pressing Escape does **not** bail back to view mode. Early iterations
- *  did, but Trix's floating toolbar causes routine intermediate blurs that made
- *  that feel hostile (click a formatting button, editor unmounts). Modal close
- *  resets this state since the whole subtree remounts on the next open. */
+ *  Esc inside the editor exits back to view mode (via DescriptionEditor's
+ *  onEscape callback). The editor stops Esc from propagating, so the modal's
+ *  window-level Esc-to-close listener doesn't fire — exiting edit mode is the
+ *  natural undo for "I clicked here by accident." */
 export function DescriptionField({
   value,
   onChange,
+  uploadFile,
   placeholder = 'Add a description…',
 }: {
   value: string;
   onChange: (html: string) => void;
+  uploadFile?: (file: File) => Promise<UploadedAttachment>;
   placeholder?: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -28,6 +29,8 @@ export function DescriptionField({
       <DescriptionEditor
         value={value}
         onChange={onChange}
+        onEscape={() => setEditing(false)}
+        uploadFile={uploadFile}
         variant="default"
         placeholder={placeholder}
         autoFocus
@@ -41,7 +44,14 @@ export function DescriptionField({
     <div
       role="button"
       tabIndex={0}
-      onClick={() => setEditing(true)}
+      onClick={(e) => {
+        // Defensive: even with the renderer's own stopPropagation, never
+        // enter edit mode on clicks targeting interactive elements (links
+        // open in a new tab, images open the lightbox, video controls play).
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('a, img, video, button')) return;
+        setEditing(true);
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -60,10 +70,11 @@ export function DescriptionField({
       {isEmpty ? (
         placeholder
       ) : (
-        // ADO-stored HTML (same provenance as comments). Rendered as-is so tables,
-        // images, and inline formatting survive.
-        // eslint-disable-next-line react/no-danger
-        <div dangerouslySetInnerHTML={{ __html: value }} />
+        // RichTextRenderer intercepts link/image/video clicks (open new tab,
+        // lightbox, inline video) so they don't bubble up and trigger edit mode.
+        // Plain-text clicks still bubble to the wrapper, which is the intended
+        // way to enter edit mode.
+        <RichTextRenderer html={value} />
       )}
     </div>
   );

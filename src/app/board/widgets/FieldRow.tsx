@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Info } from 'lucide-react';
 import type { FormControl } from '@/ado/form';
 import type { AdoIdentity } from '@/ado/types';
+import type { UploadedAttachment } from '../DescriptionEditor.lazy';
 import type { DraftValue } from './types';
 import {
   BooleanWidget,
@@ -26,6 +27,7 @@ export function FieldRow({
   onChange,
   disabled,
   action,
+  uploadFile,
 }: {
   control: FormControl;
   value: DraftValue;
@@ -35,6 +37,7 @@ export function FieldRow({
    *  Rendered right-aligned via `ml-auto`; should be styled to reveal on
    *  hover by the caller (the FieldRow itself has no hover scope). */
   action?: ReactNode;
+  uploadFile?: (file: File) => Promise<UploadedAttachment>;
 }) {
   return (
     <div>
@@ -57,6 +60,7 @@ export function FieldRow({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        uploadFile={uploadFile}
       />
     </div>
   );
@@ -67,11 +71,13 @@ function WidgetDispatcher({
   value,
   onChange,
   disabled,
+  uploadFile,
 }: {
   control: FormControl;
   value: DraftValue;
   onChange: (next: DraftValue) => void;
   disabled?: boolean;
+  uploadFile?: (file: File) => Promise<UploadedAttachment>;
 }) {
   const ro = !!control.readOnly;
   if (ro) {
@@ -111,6 +117,7 @@ function WidgetDispatcher({
           value={asString(value)}
           onChange={(v) => onChange(v)}
           disabled={disabled}
+          uploadFile={uploadFile}
         />
       );
     case 'plainText':

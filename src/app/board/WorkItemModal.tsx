@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -26,6 +27,7 @@ import type { AdoFieldPatch } from '@/ado/endpoints';
 import {
   patchWorkItemField,
   patchWorkItemFields,
+  uploadAttachment,
 } from '@/ado/endpoints';
 import type {
   AdoIdentity,
@@ -63,6 +65,8 @@ import { PicklistPicker } from './PicklistPicker';
 import { PinButton } from './PinButton';
 import { resolveDefaultPins } from './default-pins';
 import { usePinnedFields, effectivePins } from '@/state/pinnedFields.store';
+import { filenameFromAttachmentUrl, newAttachmentUrls } from './attachments';
+import type { UploadedAttachment } from './DescriptionEditor.lazy';
 import {
   readPoints,
   workItemTypeStyle,
@@ -404,29 +408,68 @@ export function WorkItemModal({
 
   const dirty = structuralDirty || layoutPatches.length > 0;
 
-  const save = useMutation({
-    mutationFn: async () => {
+  // Scoped upload callback for the description + any layout HTML editor.
+  // Stable per projectId so the editor doesn't churn on each render.
+  const uploadFile = useCallback(
+    async (file: File): Promise<UploadedAttachment> => {
       if (!projectId) throw new Error('Missing project');
-      const { patches, error } = buildPatches(original, draft, pointsField);
-      if (error) throw new Error(error);
-      const all = [...patches, ...layoutPatches];
-      if (all.length === 0) return null;
-      return patchWorkItemFields(projectId, task.workItem.id, all);
+      const { url } = await uploadAttachment(projectId, file.name, file);
+      return {
+        url,
+        name: file.name,
+        kind: file.type.startsWith('video/') ? 'video' : 'image',
+      };
     },
-    onMutate: () => {
+    [projectId],
+  );
+
+  // Payload is computed synchronously at submit time, not inside mutationFn.
+  // onMutate's optimistic `setQueryData(fullKey, …)` immediately merges the
+  // layoutPatches into `full.data`; React flushes that before the async
+  // mutationFn body runs, which causes `layoutOriginal` (a useMemo on
+  // `full.data`) to catch up with `layoutDraft`, which drops `layoutPatches`
+  // to [] in the next render — and the mutationFn's closure then sees empty
+  // patches, hits the `all.length === 0` short-circuit, and no request ever
+  // fires. Passing the snapshot as mutate variables keeps the request payload
+  // stable through the React flush.
+  interface SaveVariables {
+    patches: AdoFieldPatch[];
+    addAttachments: { url: string; name: string }[];
+    snapshotDraft: Draft;
+    snapshotLayoutPatches: AdoFieldPatch[];
+  }
+
+  const save = useMutation({
+    mutationFn: async ({ patches, addAttachments }: SaveVariables) => {
+      if (!projectId) throw new Error('Missing project');
+      if (patches.length === 0) return null;
+      return patchWorkItemFields(
+        projectId,
+        task.workItem.id,
+        patches,
+        addAttachments.length > 0 ? addAttachments : undefined,
+      );
+    },
+    onMutate: ({ snapshotDraft, snapshotLayoutPatches }: SaveVariables) => {
       const prev = queryClient.getQueryData<TaskboardData>(queryKey);
       if (prev) {
         queryClient.setQueryData<TaskboardData>(
           queryKey,
-          applyDraftToTaskboard(prev, task.workItem.id, wiType, draft, pointsField),
+          applyDraftToTaskboard(
+            prev,
+            task.workItem.id,
+            wiType,
+            snapshotDraft,
+            pointsField,
+          ),
         );
       }
       // Full-workitem cache gets every layout patch so modal close/reopen shows
       // the edited value before the refetch lands.
       const prevFull = queryClient.getQueryData<AdoWorkItem>(fullKey);
-      if (prevFull && layoutPatches.length > 0) {
+      if (prevFull && snapshotLayoutPatches.length > 0) {
         const merged = { ...prevFull.fields };
-        for (const p of layoutPatches) {
+        for (const p of snapshotLayoutPatches) {
           merged[p.field] = p.value ?? undefined;
         }
         queryClient.setQueryData<AdoWorkItem>(fullKey, {
@@ -457,7 +500,11 @@ export function WorkItemModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const { error } = buildPatches(original, draft, pointsField);
+    const { patches: structuralPatches, error } = buildPatches(
+      original,
+      draft,
+      pointsField,
+    );
     if (error) {
       setError(error);
       return;
@@ -467,7 +514,41 @@ export function WorkItemModal({
       setError(vErr);
       return;
     }
-    save.mutate();
+    const all: AdoFieldPatch[] = [...structuralPatches, ...layoutPatches];
+    if (all.length === 0) {
+      onClose();
+      return;
+    }
+
+    // Attachment URLs: description + every changed HTML layout widget,
+    // filtered against the relations already on the work item.
+    const added: string[] = newAttachmentUrls(
+      original.description,
+      draft.description,
+    );
+    for (const p of layoutPatches) {
+      const ctl = allControls.find((c) => c.referenceName === p.field);
+      if (!ctl || ctl.widget !== 'html') continue;
+      const oldVal = layoutOriginal?.[p.field];
+      const oldStr = typeof oldVal === 'string' ? oldVal : '';
+      const newStr = typeof p.value === 'string' ? p.value : '';
+      added.push(...newAttachmentUrls(oldStr, newStr));
+    }
+    const existingRelUrls = new Set(
+      (full.data?.relations ?? [])
+        .filter((r) => r.rel === 'AttachedFile')
+        .map((r) => r.url),
+    );
+    const addAttachments = Array.from(new Set(added))
+      .filter((u) => !existingRelUrls.has(u))
+      .map((url) => ({ url, name: filenameFromAttachmentUrl(url) }));
+
+    save.mutate({
+      patches: all,
+      addAttachments,
+      snapshotDraft: draft,
+      snapshotLayoutPatches: layoutPatches,
+    });
   }
 
   function setLayoutField(ref: string, value: DraftValue) {
@@ -552,13 +633,22 @@ export function WorkItemModal({
             )}
           />
 
-          <Section label="Description">
-            <DescriptionField
-              value={draft.description}
-              onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
-              placeholder="Add a description…"
-            />
-          </Section>
+          {/* Render Description only when the work-item type's form actually
+              has it. Some process templates omit Description on Bug in favor
+              of Repro Steps / System Info / Acceptance Criteria — surfacing
+              an empty Description in those cases would just be confusing.
+              While the descriptor is loading we default to showing it (the
+              vast majority of WITs include Description). */}
+          {(!descriptor || descriptor.hasDescription) && (
+            <Section label="Description">
+              <DescriptionField
+                value={draft.description}
+                onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
+                uploadFile={uploadFile}
+                placeholder="Add a description…"
+              />
+            </Section>
+          )}
 
           {(layout.isLoading || full.isLoading) && !descriptor && (
             <div className="space-y-2">
@@ -572,6 +662,7 @@ export function WorkItemModal({
               group={group}
               draft={layoutDraft}
               onChange={setLayoutField}
+              uploadFile={uploadFile}
             />
           ))}
 
@@ -711,6 +802,7 @@ export function WorkItemModal({
                         onChange={(v) =>
                           setLayoutField(control.referenceName, v)
                         }
+                        uploadFile={uploadFile}
                         action={
                           <PinButton
                             pinned
@@ -754,6 +846,7 @@ export function WorkItemModal({
                           group={group}
                           draft={layoutDraft}
                           onChange={setLayoutField}
+                          uploadFile={uploadFile}
                           renderAction={(control) => (
                             <PinButton
                               pinned={false}
@@ -822,6 +915,7 @@ function LayoutGroup({
   draft,
   onChange,
   renderAction,
+  uploadFile,
 }: {
   group: import('@/ado/form').FormGroup;
   draft: DraftRecord;
@@ -829,6 +923,7 @@ function LayoutGroup({
   /** Per-row trailing action (typically the Pin/PinOff button). Wrapped in a
    *  `group` container so the action can hover-reveal via `group-hover:*`. */
   renderAction?: (control: FormControl) => React.ReactNode;
+  uploadFile?: (file: File) => Promise<UploadedAttachment>;
 }) {
   // A group whose label echoes its single control's label is just visual noise —
   // ADO's native form renders those as plain sections without a header. Only show
@@ -853,6 +948,7 @@ function LayoutGroup({
             value={draft[control.referenceName] ?? null}
             onChange={(v) => onChange(control.referenceName, v)}
             action={renderAction?.(control)}
+            uploadFile={uploadFile}
           />
         </div>
       ))}

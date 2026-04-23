@@ -126,11 +126,22 @@ export interface AdoWorkItemFields {
   [key: string]: unknown;
 }
 
+/** A single relation entry on a work item. The two we care about today are
+ *  `AttachedFile` (binary attachments via the upload endpoint) and the
+ *  `System.LinkTypes.Hierarchy-{Forward,Reverse}` relations (parent/child). */
+export interface AdoWorkItemRelation {
+  rel: string;
+  url: string;
+  attributes?: Record<string, unknown>;
+}
+
 export interface AdoWorkItem {
   id: number;
   rev: number;
   fields: AdoWorkItemFields;
   url: string;
+  /** Populated only when the request asked for `?$expand=relations` (or `all`). */
+  relations?: AdoWorkItemRelation[];
 }
 
 export type AdoStateCategory =

@@ -4,7 +4,13 @@ export interface AdoRequestOptions {
   path: string;
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
-  contentType?: 'application/json' | 'application/json-patch+json';
+  contentType?:
+    | 'application/json'
+    | 'application/json-patch+json'
+    | 'application/octet-stream';
+  /** When true, send `body` as-is (must be a BodyInit value: Blob, ArrayBuffer,
+   *  FormData, etc.) without JSON.stringify. Used by attachment uploads. */
+  rawBody?: boolean;
   apiVersion?: string;
   signal?: AbortSignal;
   /** If provided, overrides the stored org/pat (used during onboarding before persist) */
@@ -48,7 +54,12 @@ export async function adoRaw(opts: AdoRequestOptions): Promise<Response> {
   const res = await fetch(url, {
     method: opts.method ?? 'GET',
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body:
+      opts.body === undefined
+        ? undefined
+        : opts.rawBody
+          ? (opts.body as BodyInit)
+          : JSON.stringify(opts.body),
     signal: opts.signal,
   });
 

@@ -40,6 +40,12 @@ export interface FormGroup {
 export interface FormDescriptor {
   mainGroups: FormGroup[];
   sidebarGroups: FormGroup[];
+  /** True when the work-item type's form actually configures System.Description.
+   *  Process templates differ here — e.g. Scrum Bugs ship with Repro Steps /
+   *  System Info / Acceptance Criteria but no Description, while Agile Bugs
+   *  include Description. The modal hides its hardcoded Description section
+   *  when this is false so we don't surface a field ADO doesn't actually use. */
+  hasDescription: boolean;
 }
 
 /** Fields the modal renders *structurally* (dedicated widgets outside the generic
@@ -196,9 +202,10 @@ export function buildFormDescriptor(
     (p) => p.pageType === 'custom' && p.visible !== false,
   );
   if (customPages.length === 0) {
-    return { mainGroups: [], sidebarGroups: [] };
+    return { mainGroups: [], sidebarGroups: [], hasDescription: false };
   }
 
+  let hasDescription = false;
   const allGroups: FormGroup[] = [];
   for (const page of customPages) {
    for (const section of page.sections ?? []) {
@@ -209,6 +216,9 @@ export function buildFormDescriptor(
         if (c.visible === false) continue;
         const ref = resolveFieldRef(c);
         if (!ref) continue;
+        // Track structural-field presence before the skip filter so the modal
+        // can decide whether to render its hardcoded Description section.
+        if (ref === 'System.Description') hasDescription = true;
         if (STRUCTURAL_OR_HIDDEN.has(ref)) continue;
         const field = orgFieldsByRef.get(ref);
         const typeField = typeFieldsByRef.get(ref);
@@ -251,5 +261,5 @@ export function buildFormDescriptor(
     );
     (hasLong ? mainGroups : sidebarGroups).push(g);
   }
-  return { mainGroups, sidebarGroups };
+  return { mainGroups, sidebarGroups, hasDescription };
 }

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Send, Trash2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   createWorkItemComment,
   deleteWorkItemComment,
+  patchWorkItemFields,
   updateWorkItemComment,
+  uploadAttachment,
 } from '@/ado/endpoints';
 import { useComments } from '@/ado/hooks/useComments';
 import { useCurrentUser } from '@/ado/hooks/useCurrentUser';
@@ -15,6 +17,12 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
 import { DescriptionEditor } from './DescriptionEditor';
+import type { UploadedAttachment } from './DescriptionEditor.lazy';
+import { RichTextRenderer } from './RichTextRenderer';
+import {
+  filenameFromAttachmentUrl,
+  newAttachmentUrls,
+} from './attachments';
 import { relativeTime } from './timeFormat';
 
 const commentsKey = (projectId: string | null, id: number) =>
@@ -71,10 +79,50 @@ export function CommentsPanel({
 
   const queryKey = useMemo(() => commentsKey(projectId, workItemId), [projectId, workItemId]);
 
+  // Scoped upload callback for the composer + edit-in-place editors.
+  const uploadFile = useCallback(
+    async (file: File): Promise<UploadedAttachment> => {
+      if (!projectId) throw new Error('Missing project');
+      const { url } = await uploadAttachment(projectId, file.name, file);
+      return {
+        url,
+        name: file.name,
+        kind: file.type.startsWith('video/') ? 'video' : 'image',
+      };
+    },
+    [projectId],
+  );
+
+  // Bind any newly uploaded attachments to the work item via /relations/-.
+  // Without this the attachment is GC'd by ADO eventually and the image breaks
+  // in the comment. Failures are non-fatal (comment is the user's intent;
+  // missing relation surfaces as a broken image later, not a posting error).
+  const bindAttachments = useCallback(
+    async (prevHtml: string, nextHtml: string) => {
+      if (!projectId) return;
+      const added = newAttachmentUrls(prevHtml, nextHtml);
+      if (added.length === 0) return;
+      const addAttachments = added.map((url) => ({
+        url,
+        name: filenameFromAttachmentUrl(url),
+      }));
+      try {
+        await patchWorkItemFields(projectId, workItemId, [], addAttachments);
+      } catch (err) {
+        console.warn('failed to attach files to work item', err);
+      }
+    },
+    [projectId, workItemId],
+  );
+
   const postComment = useMutation({
     mutationFn: async (text: string) => {
       if (!projectId) throw new Error('Missing project');
-      return createWorkItemComment(projectId, workItemId, text);
+      const created = await createWorkItemComment(projectId, workItemId, text);
+      // Composer always starts empty, so the diff vs '' surfaces every newly
+      // uploaded attachment URL in the comment.
+      await bindAttachments('', text);
+      return created;
     },
     onSuccess: (created) => {
       queryClient.setQueryData<AdoWorkItemComment[]>(queryKey, (prev) =>
@@ -89,9 +137,19 @@ export function CommentsPanel({
   });
 
   const editComment = useMutation({
-    mutationFn: async ({ id, text }: { id: number; text: string }) => {
+    mutationFn: async ({
+      id,
+      text,
+      previousText,
+    }: {
+      id: number;
+      text: string;
+      previousText: string;
+    }) => {
       if (!projectId) throw new Error('Missing project');
-      return updateWorkItemComment(projectId, workItemId, id, text);
+      const updated = await updateWorkItemComment(projectId, workItemId, id, text);
+      await bindAttachments(previousText, text);
+      return updated;
     },
     onSuccess: (updated) => {
       queryClient.setQueryData<AdoWorkItemComment[]>(queryKey, (prev) =>
@@ -154,6 +212,7 @@ export function CommentsPanel({
         <DescriptionEditor
           value={composer}
           onChange={setComposer}
+          uploadFile={uploadFile}
           placeholder="Write a comment…"
           variant="minimal"
         />
@@ -209,12 +268,19 @@ export function CommentsPanel({
                 isSavingEdit={
                   editComment.isPending && editComment.variables?.id === c.commentId
                 }
+                uploadFile={uploadFile}
                 onStartEdit={() => {
                   setEditingId(c.commentId);
                   setActionError(null);
                 }}
                 onCancelEdit={() => setEditingId(null)}
-                onSaveEdit={(text) => editComment.mutate({ id: c.commentId, text })}
+                onSaveEdit={(text) =>
+                  editComment.mutate({
+                    id: c.commentId,
+                    text,
+                    previousText: c.text,
+                  })
+                }
                 onDelete={() => {
                   if (confirm('Delete this comment?')) {
                     removeComment.mutate(c.commentId);
@@ -234,6 +300,7 @@ function CommentRow({
   mine,
   editing,
   isSavingEdit,
+  uploadFile,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
@@ -243,6 +310,7 @@ function CommentRow({
   mine: boolean;
   editing: boolean;
   isSavingEdit: boolean;
+  uploadFile: (file: File) => Promise<UploadedAttachment>;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaveEdit: (text: string) => void;
@@ -289,13 +357,12 @@ function CommentRow({
             onCancel={onCancelEdit}
             onSave={onSaveEdit}
             busy={isSavingEdit}
+            uploadFile={uploadFile}
           />
         ) : (
-          <div
+          <RichTextRenderer
+            html={comment.text}
             className="jfd-comment-body mt-1 text-[13px] leading-[1.5] text-zinc-200"
-            // ADO-stored HTML is trusted here (authenticated org, Trix-written).
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: comment.text }}
           />
         )}
       </div>
@@ -308,11 +375,13 @@ function EditableBody({
   onCancel,
   onSave,
   busy,
+  uploadFile,
 }: {
   initial: string;
   onCancel: () => void;
   onSave: (text: string) => void;
   busy: boolean;
+  uploadFile: (file: File) => Promise<UploadedAttachment>;
 }) {
   const [value, setValue] = useState(initial);
   useEffect(() => {
@@ -324,6 +393,7 @@ function EditableBody({
         <DescriptionEditor
           value={value}
           onChange={setValue}
+          uploadFile={uploadFile}
           variant="minimal"
           autoFocus
         />

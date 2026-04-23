@@ -1,4 +1,4 @@
-import { ado, adoPaged } from './client';
+import { ado, adoPaged, adoRaw } from './client';
 import type {
   AdoCommentList,
   AdoConnectionData,
@@ -226,7 +226,10 @@ export function getWorkItem(
   id: number,
 ): Promise<AdoWorkItem> {
   return ado<AdoWorkItem>({
-    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}`,
+    // $expand=relations so the modal can know which AttachedFile URLs are
+    // already linked — that lets save skip duplicate /relations/- ops when the
+    // user pastes the same image URL twice.
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}?$expand=relations`,
   });
 }
 
@@ -269,22 +272,60 @@ export function patchWorkItemField(
  *  For "clear this field" (null or empty string), we emit `op: "remove"` with
  *  no `value`. Sending `{ op: "add", value: "" }` for System.Tags is silently
  *  a no-op — ADO only honors removal via the JSON-Patch `remove` op. The same
- *  op also reliably clears identity fields like System.AssignedTo. */
+ *  op also reliably clears identity fields like System.AssignedTo.
+ *
+ *  Optional `addAttachments` appends `/relations/-` ops to bind newly uploaded
+ *  attachments (image/video pasted into a description or layout HTML field) to
+ *  the work item — without this, the attachment exists in ADO storage but
+ *  isn't associated with anything and gets garbage-collected. */
 export function patchWorkItemFields(
   projectId: string,
   id: number,
   patches: AdoFieldPatch[],
+  addAttachments?: { url: string; name?: string }[],
 ): Promise<AdoWorkItem> {
+  const fieldOps = patches.map((p) =>
+    p.value === null || p.value === ''
+      ? { op: 'remove', path: `/fields/${p.field}` }
+      : { op: 'add', path: `/fields/${p.field}`, value: p.value },
+  );
+  const relOps = (addAttachments ?? []).map((a) => ({
+    op: 'add',
+    path: '/relations/-',
+    value: {
+      rel: 'AttachedFile',
+      url: a.url,
+      attributes: a.name ? { name: a.name } : undefined,
+    },
+  }));
   return ado<AdoWorkItem>({
     path: `/${encodeURIComponent(projectId)}/_apis/wit/workitems/${id}`,
     method: 'PATCH',
     contentType: 'application/json-patch+json',
-    body: patches.map((p) =>
-      p.value === null || p.value === ''
-        ? { op: 'remove', path: `/fields/${p.field}` }
-        : { op: 'add', path: `/fields/${p.field}`, value: p.value },
-    ),
+    body: [...fieldOps, ...relOps],
   });
+}
+
+/** Upload a binary attachment for later linking to a work item. The returned
+ *  `url` is what you embed in the HTML (img src / a href) AND what you attach
+ *  to the work item via a `/relations/-` op (rel: AttachedFile).
+ *
+ *  Two-step flow because ADO needs the upload to exist as a standalone blob
+ *  before the work-item PATCH can reference it. The blob is GC'd if no work
+ *  item links it within a window (~1 day for free orgs). */
+export async function uploadAttachment(
+  projectId: string,
+  fileName: string,
+  blob: Blob,
+): Promise<{ id: string; url: string }> {
+  const res = await adoRaw({
+    path: `/${encodeURIComponent(projectId)}/_apis/wit/attachments?fileName=${encodeURIComponent(fileName)}`,
+    method: 'POST',
+    body: blob,
+    rawBody: true,
+    contentType: 'application/octet-stream',
+  });
+  return (await res.json()) as { id: string; url: string };
 }
 
 /* ── Comments ─────────────────────────────────────────────────────────────── */
@@ -413,6 +454,7 @@ export function createWorkItem(
   typeName: string,
   fields: Record<string, AdoFieldValue>,
   parentUrl?: string,
+  addAttachments?: { url: string; name?: string }[],
 ): Promise<AdoWorkItem> {
   const ops: Array<{ op: 'add'; path: string; value: unknown }> = [];
   for (const [name, value] of Object.entries(fields)) {
@@ -424,6 +466,17 @@ export function createWorkItem(
       op: 'add',
       path: '/relations/-',
       value: { rel: 'System.LinkTypes.Hierarchy-Reverse', url: parentUrl },
+    });
+  }
+  for (const a of addAttachments ?? []) {
+    ops.push({
+      op: 'add',
+      path: '/relations/-',
+      value: {
+        rel: 'AttachedFile',
+        url: a.url,
+        attributes: a.name ? { name: a.name } : undefined,
+      },
     });
   }
   return ado<AdoWorkItem>({
