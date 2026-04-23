@@ -12,6 +12,7 @@ import {
 import { useSettings } from '@/state/settings.store';
 import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { cn } from '@/lib/cn';
+import { AnimatedCount } from './AnimatedCount';
 import { CreateTaskDialog, appendCreatedTask } from './CreateTaskDialog';
 import { TaskCard } from './TaskCard';
 import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
@@ -447,7 +448,7 @@ function ColumnHeader({ column, count }: { column: AdoTaskboardColumn; count: nu
       <span className="text-[11px] font-semibold uppercase tracking-[0.12em] pl-1 text-zinc-400">
         {column.name}
       </span>
-      <span className="mono text-[11px] text-zinc-600">{count}</span>
+      <AnimatedCount value={count} className="mono text-[11px] text-zinc-600" />
       {done && count > 0 && <Check className="h-3 w-3 text-emerald-400/80 ml-auto" />}
     </div>
   );

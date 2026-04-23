@@ -45,6 +45,7 @@ import { useWorkItemTypeFields } from '@/ado/hooks/useWorkItemTypeFields';
 import { useWorkItemTypeLayout } from '@/ado/hooks/useWorkItemTypeLayout';
 import { buildFormDescriptor, type FormControl } from '@/ado/form';
 import { useSettings } from '@/state/settings.store';
+import { useToasts } from '@/state/toasts.store';
 import { cn } from '@/lib/cn';
 import { AssigneePicker } from './AssigneePicker';
 import { Avatar } from './Avatar';
@@ -507,6 +508,7 @@ export function WorkItemModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
       queryClient.invalidateQueries({ queryKey: fullKey });
+      useToasts.getState().push(`Saved #${task.workItem.id}`);
       onClose();
     },
   });
@@ -606,7 +608,14 @@ export function WorkItemModal({
       footer={
         <>
           {error && !readOnly && (
-            <div className="mr-auto flex items-center gap-1.5 text-[11px] text-red-300/90">
+            // key={error} remounts on each new error string so jfd-shake
+            // re-fires. Same-message-twice-in-a-row won't re-shake, which
+            // is the correct behaviour for retry→same-failure — the user
+            // already saw the shake once.
+            <div
+              key={error}
+              className="jfd-shake mr-auto flex items-center gap-1.5 text-[11px] text-red-300/90"
+            >
               <AlertCircle className="h-3.5 w-3.5" />
               <span className="mono truncate max-w-[360px]">{error}</span>
             </div>
@@ -1205,6 +1214,7 @@ function TagsEditor({
             // Extra right padding when the × button isn't there, so the label
             // doesn't sit flush against the rounded edge.
             readOnly ? 'px-2' : 'pl-2 pr-0.5',
+            'jfd-chip-in',
           )}
         >
           {tag}

@@ -153,7 +153,15 @@ export function SwimlaneBanner({
       >
         {f['System.Title']}
       </span>
-      <span className="mono text-[11px] text-zinc-600 shrink-0">· {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} </span>
+      {/* key={totalTasks} remounts the span on count change so the brief
+          slide-up keyframe fires — subtle motion that signals "this changed
+          because a card moved". */}
+      <span
+        key={totalTasks}
+        className="mono text-[11px] text-zinc-600 shrink-0 jfd-count-roll inline-block"
+      >
+        · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}{' '}
+      </span>
       {tags.length > 0 && (
         <div className="flex items-center gap-1 shrink-0">
           {tags.slice(0, 2).map((tag) => (
@@ -201,7 +209,10 @@ export function UnparentedBanner({
   return (
     <BannerShell collapsed={collapsed} onToggle={onToggle} isRecentlyFocused={isRecentlyFocused}>
       <span className="text-zinc-300 font-medium">Everything else</span>
-      <span className="text-[11px] text-zinc-600 shrink-0">
+      <span
+        key={totalTasks}
+        className="text-[11px] text-zinc-600 shrink-0 jfd-count-roll inline-block"
+      >
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint
       </span>
       {onCreate && (

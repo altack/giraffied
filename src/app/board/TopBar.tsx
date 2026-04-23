@@ -46,8 +46,9 @@ export function TopBar({
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-5 h-11 bg-[var(--color-canvas)]/70 backdrop-blur-lg border-b border-white/[0.05]">
       <div className="flex items-center gap-3 min-w-0">
-        <span className="text-[13px] font-semibold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
-          Giraffied 🦒
+        <span className="text-[13px] font-semibold tracking-tight">
+          <span className="jfd-wordmark">Giraffied</span>
+          {' 🦒'}
         </span>
         <Sep />
         <span className="text-[13px] text-zinc-100 font-medium truncate">

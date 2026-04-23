@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -57,14 +56,13 @@ export function SearchOverlay({
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const pillBarRef = useRef<HTMLDivElement>(null);
   const projectName = useSettings((s) => s.projectName);
 
-  // Deferred unmount so the exit-morph animation has time to play. `visible`
-  // stays true through the exit; `exiting=true` is the cue for the morph
-  // effect below to animate the panel back to the trigger. Timeout matches
-  // the longest transition in `.jfd-search-morph` (240ms).
+  // Deferred unmount so the exit animation has time to play. `visible` stays
+  // true through the exit; `exiting=true` swaps the enter keyframe for the
+  // exit keyframe. Timeout matches `.jfd-modal-out` (140ms) so we unmount
+  // right after it finishes.
   const [visible, setVisible] = useState(open);
   const [exiting, setExiting] = useState(false);
   useEffect(() => {
@@ -76,80 +74,10 @@ export function SearchOverlay({
       const t = setTimeout(() => {
         setVisible(false);
         setExiting(false);
-      }, 240);
+      }, 160);
       return () => clearTimeout(t);
     }
   }, [open, visible]);
-
-  // Morph-from-trigger. On enter: measure the trigger element (found via a
-  // data-attribute selector so ⌘K-driven opens work too), apply an inline
-  // transform that places the panel at the trigger's rect, then clear the
-  // transform on the next frame — the `jfd-search-morph` transition drives
-  // the animation to its resting position. On exit: measure again and re-
-  // apply the transform so the panel flies back to where the user clicked.
-  const [morphStyle, setMorphStyle] = useState<CSSProperties>({});
-  useLayoutEffect(() => {
-    if (!visible) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const trigger = document.querySelector<HTMLElement>('[data-search-trigger]');
-
-    // Panel rect in its resting layout. For the enter path we temporarily
-    // clear any inline transform so getBoundingClientRect reads the final
-    // position, then re-apply the computed transform in the same microtask.
-    panel.style.transform = '';
-    panel.style.opacity = '';
-    const p = panel.getBoundingClientRect();
-
-    // Fallback when the trigger isn't in the DOM — reuse the calmer
-    // jfd-popover-enter shape (tiny lift + soft scale) so something still
-    // animates instead of snapping in.
-    if (!trigger) {
-      if (exiting) {
-        setMorphStyle({
-          transform: 'translateY(-4px) scale(0.98)',
-          opacity: 0,
-        });
-      } else {
-        setMorphStyle({
-          transform: 'translateY(-4px) scale(0.98)',
-          opacity: 0,
-        });
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => setMorphStyle({}));
-        });
-      }
-      return;
-    }
-
-    const t = trigger.getBoundingClientRect();
-    const dx = t.left + t.width / 2 - (p.left + p.width / 2);
-    const dy = t.top + t.height / 2 - (p.top + p.height / 2);
-    const sx = Math.max(t.width / p.width, 0.08);
-    const sy = Math.max(t.height / p.height, 0.04);
-    const atTrigger: CSSProperties = {
-      transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
-      opacity: 0,
-    };
-    if (exiting) {
-      setMorphStyle(atTrigger);
-      return;
-    }
-    setMorphStyle(atTrigger);
-    // Guard against the user closing before the rAF fires — setting state on
-    // an already-unmounted panel is harmless in React 19 but the clearing
-    // would otherwise race with an exit that's already applying its own
-    // transform.
-    let canceled = false;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!canceled) setMorphStyle({});
-      });
-    });
-    return () => {
-      canceled = true;
-    };
-  }, [visible, exiting]);
 
   const { results, isLoading, isTyping, isShort, error, query: debounced } =
     useWorkItemSearch(query, scope, { iterationPath }, open);
@@ -298,10 +226,9 @@ export function SearchOverlay({
 
       {/* The panel itself — this is where the backdrop blur lives now, so the
           panel reads as translucent glass sitting over the ambient light and
-          the (crisp) board behind. Morphs to/from the search trigger via
-          inline transform + the `.jfd-search-morph` transition. */}
+          the (crisp) board behind. Subtle fade + small lift on enter/exit —
+          matches the motion vocabulary used by the work-item modal. */}
       <div
-        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Search work items"
@@ -312,16 +239,9 @@ export function SearchOverlay({
           // Ambient indigo glow outside the panel + deep drop shadow below.
           'shadow-[0_28px_80px_-16px_rgb(0_0_0/0.7),0_0_0_1px_rgb(129_140_248/0.06),0_0_60px_-10px_rgb(129_140_248/0.18)]',
           'flex flex-col',
-          'jfd-search-morph',
+          exiting ? 'jfd-modal-out' : 'jfd-modal-in',
         )}
-        style={{
-          maxHeight: 'calc(100vh - 18vh)',
-          // Preserve transform-origin at center so the scale during the morph
-          // happens symmetrically; trigger position is expressed purely via
-          // translate, so origin doesn't need to shift.
-          transformOrigin: 'center',
-          ...morphStyle,
-        }}
+        style={{ maxHeight: 'calc(100vh - 18vh)' }}
       >
         {/* Input row */}
         <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
@@ -591,7 +511,7 @@ function SearchFooter() {
     >
       <div className="flex items-center gap-1.5 min-w-0">
         <span aria-hidden className="text-[12px] leading-none">🦒</span>
-        <span className="text-[11.5px] font-semibold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
+        <span className="jfd-wordmark text-[11.5px] font-semibold tracking-tight">
           Giraffied
         </span>
         <span className="text-zinc-700 select-none">·</span>

@@ -147,6 +147,7 @@ export function MultiPicklistPicker({
             // Even right padding when the × button isn't rendered, so the label
             // doesn't sit flush against the rounded edge.
             disabled ? 'px-2' : 'pl-2 pr-0.5',
+            'jfd-chip-in',
           )}
         >
           {v}

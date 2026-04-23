@@ -393,15 +393,105 @@ body {
 }
 .jfd-tab-in { animation: jfd-tab-in 160ms ease-out both; }
 
-/* Search-overlay morph — the panel starts at the trigger's position/size and
- * slides/scales to its resting layout. Initial transform is applied inline
- * (measured at open time); the transition below drives the animation when the
- * inline transform is cleared on the next frame. */
-.jfd-search-morph {
-  transition:
-    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity   180ms ease-out;
+/* Directional view slide — used by the ContextSwitcher when navigating
+ * menu → projects → teams (forward) and back. The 12px offset is big enough
+ * to register as a direction cue but small enough that the user's eye can
+ * still track the continuity. */
+@keyframes jfd-view-fwd  { from { opacity: 0; transform: translateX(12px); }  to { opacity: 1; transform: translateX(0); } }
+@keyframes jfd-view-back { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+.jfd-view-fwd  { animation: jfd-view-fwd  180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.jfd-view-back { animation: jfd-view-back 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Neutral view swap — for the onboarding wizard steps. Direction-agnostic so
+ * forward/back reads the same; onboarding isn't a deep drill-down, it's a
+ * linear setup flow where a calm cross-fade suits better than a slide. */
+@keyframes jfd-view-swap {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.jfd-view-swap { animation: jfd-view-swap 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Chip pop — used by TagsEditor and MultiPicklistPicker when a new chip
+ * appears. Fires on mount only (existing chips have stable keys and don't
+ * re-animate). */
+@keyframes jfd-chip-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.jfd-chip-in { animation: jfd-chip-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Count digit roll — small slide-up reveal when a count changes. Used with
+ * key={value} on an inline span so React remounts only on real value change. */
+@keyframes jfd-count-roll {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.jfd-count-roll { animation: jfd-count-roll 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Toast slide-in — bottom-right save-confirmation toast. 200ms is snappy
+ * enough for a confirmation, not so fast it feels like a flash. */
+@keyframes jfd-toast-in {
+  from { opacity: 0; transform: translate(16px, 16px); }
+  to   { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes jfd-toast-out {
+  from { opacity: 1; transform: translate(0, 0); }
+  to   { opacity: 0; transform: translate(16px, 8px); }
+}
+.jfd-toast-in  { animation: jfd-toast-in  200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.jfd-toast-out { animation: jfd-toast-out 160ms cubic-bezier(0.4, 0, 1, 1)     both; }
+
+/* Skeleton shimmer — moving highlight across a neutral surface while the
+ * board is loading. Slow enough not to distract, visible enough to signal
+ * "actively loading, not stalled". */
+@keyframes jfd-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+.jfd-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.02) 0%,
+    rgb(255 255 255 / 0.06) 50%,
+    rgb(255 255 255 / 0.02) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: jfd-shimmer 1800ms ease-in-out infinite;
+}
+
+/* Gradient-shift hover on the "Giraffied" wordmark. Plain background-position
+ * transition from 0% → 200% so the indigo/violet stops scroll across the
+ * text when the user hovers. Rule: gradients only on the wordmark. */
+.jfd-wordmark {
+  background-image: linear-gradient(
+    90deg,
+    #a5b4fc 0%,
+    #c4b5fd 25%,
+    #a5b4fc 50%,
+    #c4b5fd 75%,
+    #a5b4fc 100%
+  );
+  background-size: 200% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  transition: background-position 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.jfd-wordmark:hover { background-position: 100% 50%; }
+
+/* Error shake — brief horizontal wobble to draw attention to a failed save.
+ * Short total duration (420ms) so it doesn't linger in the user's peripheral
+ * vision; amplitude is small (3px) to stay within "notice" not "alarm". */
+@keyframes jfd-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-3px); }
+  40%      { transform: translateX(3px); }
+  60%      { transform: translateX(-2px); }
+  80%      { transform: translateX(2px); }
+}
+.jfd-shake { animation: jfd-shake 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
 
 /* Scrollbar refinement — thin, hairline, only visible on hover. */
 *::-webkit-scrollbar {

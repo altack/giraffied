@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSettings, isOnboarded } from '@/state/settings.store';
 import { OnboardingFlow } from './onboarding/OnboardingFlow';
 import { Board } from './board/Board';
+import { Toaster } from './Toaster';
 
 export default function App() {
   const [hydrated, setHydrated] = useState(() => useSettings.persist.hasHydrated());
@@ -23,5 +24,10 @@ export default function App() {
     );
   }
 
-  return isOnboarded(state) ? <Board /> : <OnboardingFlow />;
+  return (
+    <>
+      {isOnboarded(state) ? <Board /> : <OnboardingFlow />}
+      <Toaster />
+    </>
+  );
 }

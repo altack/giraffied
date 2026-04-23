@@ -7,6 +7,7 @@ import { useSettings } from '@/state/settings.store';
 import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { TopBar } from './TopBar';
 import { BoardGrid } from './BoardGrid';
+import { BoardSkeleton } from './BoardSkeleton';
 import { assigneeKey, assigneesOnBoard } from './assigneesOnBoard';
 import { SearchOverlay } from './search/SearchOverlay';
 import { ExternalWorkItemModal } from './search/ExternalWorkItemModal';
@@ -248,10 +249,9 @@ function BoardBody({
       />
     );
   }
-  if (boardLoading)
-    return (
-      <CenteredMessage icon={<Loader2 className="h-5 w-5 animate-spin" />} text="Loading sprint…" />
-    );
+  // Show the board-shaped skeleton instead of a spinner — the user sees the
+  // target layout forming, which reads as "almost there" rather than "hung".
+  if (boardLoading) return <BoardSkeleton />;
   if (boardError) return <ErrorMessage error={boardError} title="Could not load sprint" />;
   if (!board || !iterationId) return null;
 

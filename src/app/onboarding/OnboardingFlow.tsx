@@ -100,8 +100,9 @@ export function OnboardingFlow() {
       />
       <div className="relative w-full max-w-md space-y-7">
         <header className="space-y-2">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
-            Giraffied 🦒
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em]">
+            <span className="jfd-wordmark">Giraffied</span>
+            {' 🦒'}
           </div>
           <h1 className="text-[22px] font-semibold tracking-tight leading-tight">
             Connect to Azure DevOps
@@ -112,7 +113,12 @@ export function OnboardingFlow() {
           </p>
         </header>
 
+        {/* key={step} on the inner wrapper drives a short fade-up swap on
+            step change. The surrounding panel (border/bg/padding) stays
+            static so only the content tweens, which keeps the card from
+            "breathing" on every step. */}
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 lit-top">
+          <div key={step} className="jfd-view-swap">
           {step === 'credentials' && (
             <form onSubmit={handleCredentials} className="space-y-4">
               <Field label="Organization" htmlFor="org">
@@ -241,6 +247,7 @@ export function OnboardingFlow() {
               </Button>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

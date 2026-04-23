@@ -46,6 +46,17 @@ export function ContextSwitcher() {
   // setProject() clears teamId, the App-level isOnboarded guard flips false,
   // and OnboardingFlow flashes until the user also picks a team.
   const [pendingProject, setPendingProject] = useState<AdoProject | null>(null);
+  // View direction — menu (0) → projects (1) → teams (2). Going to a deeper
+  // view slides in from the right (forward); stepping back slides in from
+  // the left. Tracked via ref so the comparison at render time is against
+  // the *previous* view, not the current one.
+  const prevViewRef = useRef<View>('menu');
+  const viewOrder = (v: View) => (v === 'menu' ? 0 : v === 'projects' ? 1 : 2);
+  const viewDirection: 'fwd' | 'back' =
+    viewOrder(view) >= viewOrder(prevViewRef.current) ? 'fwd' : 'back';
+  useEffect(() => {
+    prevViewRef.current = view;
+  }, [view]);
 
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -170,44 +181,51 @@ export function ContextSwitcher() {
               placement.origin,
             )}
           >
-            {view === 'menu' && (
-              <MenuView
-                org={org}
-                projectName={projectName}
-                teamName={teamName}
-                onSwitchProject={() => setView('projects')}
-                onSwitchTeam={() => setView('teams')}
-                onSignOut={() => {
-                  reset();
-                  close();
-                }}
-              />
-            )}
-            {view === 'projects' && (
-              <ProjectPicker
-                currentId={projectId}
-                onBack={() => {
-                  setView('menu');
-                  setPendingProject(null);
-                }}
-                onPick={handlePickProject}
-              />
-            )}
-            {view === 'teams' && teamsForProjectId && (
-              <TeamPicker
-                projectId={teamsForProjectId}
-                projectLabel={pendingProject?.name ?? projectName ?? ''}
-                currentTeamId={pendingProject ? null : teamId}
-                onBack={() => {
-                  if (pendingProject) {
-                    setView('projects');
-                  } else {
+            {/* Each view lives inside a keyed wrapper so React remounts on
+                view change and fires the directional slide keyframe. */}
+            <div
+              key={view}
+              className={viewDirection === 'fwd' ? 'jfd-view-fwd' : 'jfd-view-back'}
+            >
+              {view === 'menu' && (
+                <MenuView
+                  org={org}
+                  projectName={projectName}
+                  teamName={teamName}
+                  onSwitchProject={() => setView('projects')}
+                  onSwitchTeam={() => setView('teams')}
+                  onSignOut={() => {
+                    reset();
+                    close();
+                  }}
+                />
+              )}
+              {view === 'projects' && (
+                <ProjectPicker
+                  currentId={projectId}
+                  onBack={() => {
                     setView('menu');
-                  }
-                }}
-                onPick={handlePickTeam}
-              />
-            )}
+                    setPendingProject(null);
+                  }}
+                  onPick={handlePickProject}
+                />
+              )}
+              {view === 'teams' && teamsForProjectId && (
+                <TeamPicker
+                  projectId={teamsForProjectId}
+                  projectLabel={pendingProject?.name ?? projectName ?? ''}
+                  currentTeamId={pendingProject ? null : teamId}
+                  onBack={() => {
+                    if (pendingProject) {
+                      setView('projects');
+                    } else {
+                      setView('menu');
+                    }
+                  }}
+                  onPick={handlePickTeam}
+                />
+              )}
+            </div>
           </div>,
           document.body,
         )}
