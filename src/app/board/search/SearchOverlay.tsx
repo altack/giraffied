@@ -6,7 +6,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Search, X } from 'lucide-react';
+import { Heart, Loader2, Search, X } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import {
   useWorkItemSearch,
@@ -131,26 +131,66 @@ export function SearchOverlay({
       }}
       onKeyDown={handleKey}
     >
+      {/* Dim the board just enough to keep attention on the panel, but NOT
+          blurred — the user explicitly wanted the board to stay crisp and
+          the atmospheric effect to live in the panel + light casts. */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-[var(--color-canvas)]/55 backdrop-blur-xl"
+        className="absolute inset-0 bg-black/35"
       />
+
+      {/* Soft indigo/violet light casts behind the panel. Two radial gradients
+          blurred heavily so they read as ambient light bleeding through the
+          glass rather than distinct shapes. Clipped to the viewport so they
+          never add a horizontal scrollbar. pointer-events-none so they don't
+          eat clicks that should dismiss the overlay. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 overflow-hidden pointer-events-none"
+      >
+        <div
+          className="absolute left-1/2 top-[5vh] -translate-x-1/2 h-[360px] w-[780px] rounded-full blur-3xl"
+          style={{
+            background:
+              'radial-gradient(ellipse at center, rgb(129 140 248 / 0.28), transparent 65%)',
+          }}
+        />
+        <div
+          className="absolute left-1/2 top-[42vh] -translate-x-[68%] h-[320px] w-[600px] rounded-full blur-3xl"
+          style={{
+            background:
+              'radial-gradient(ellipse at center, rgb(167 139 250 / 0.22), transparent 65%)',
+          }}
+        />
+        <div
+          className="absolute left-1/2 top-[55vh] -translate-x-[34%] h-[280px] w-[520px] rounded-full blur-3xl"
+          style={{
+            background:
+              'radial-gradient(ellipse at center, rgb(56 189 248 / 0.14), transparent 65%)',
+          }}
+        />
+      </div>
+
+      {/* The panel itself — this is where the backdrop blur lives now, so the
+          panel reads as translucent glass sitting over the ambient light and
+          the (crisp) board behind. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Search work items"
         className={cn(
-          'relative w-full max-w-[640px] overflow-hidden rounded-xl',
-          'bg-[var(--color-surface-2)]/85 backdrop-blur-2xl',
-          'border border-white/[0.08] lit-top',
-          'shadow-[0_24px_64px_-12px_rgb(0_0_0/0.65)]',
+          'relative w-full max-w-[640px] overflow-hidden rounded-2xl',
+          'bg-[var(--color-surface-2)]/60 backdrop-blur-2xl',
+          'border border-white/[0.09] lit-top',
+          // Ambient indigo glow outside the panel + deep drop shadow below.
+          'shadow-[0_28px_80px_-16px_rgb(0_0_0/0.7),0_0_0_1px_rgb(129_140_248/0.06),0_0_60px_-10px_rgb(129_140_248/0.18)]',
           'flex flex-col',
           'jfd-popover-enter',
         )}
-        style={{ maxHeight: 'calc(100vh - 20vh)' }}
+        style={{ maxHeight: 'calc(100vh - 18vh)' }}
       >
         {/* Input row */}
-        <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
           <Search className="h-4 w-4 text-zinc-500 shrink-0" aria-hidden />
           <input
             ref={inputRef}
@@ -182,7 +222,7 @@ export function SearchOverlay({
         </div>
 
         {/* Scope pills */}
-        <div className="flex items-center gap-1 px-3 pb-2 border-b border-white/[0.06]">
+        <div className="flex items-center gap-1 px-3.5 pb-2.5 border-b border-white/[0.06]">
           {visibleScopes.map((s) => {
             const active = s === scope;
             return (
@@ -208,14 +248,16 @@ export function SearchOverlay({
             );
           })}
           <div className="ml-auto mono text-[10px] text-zinc-600 hidden sm:block">
-            ↑↓ to navigate · Enter to open · Esc to close
+            ↑↓ · Enter · Esc
           </div>
         </div>
 
         {/* Results / state */}
-        <div className="min-h-[200px] max-h-[60vh] overflow-y-auto">
+        <div className="min-h-[200px] max-h-[56vh] overflow-y-auto">
           {renderBody()}
         </div>
+
+        <SearchFooter />
       </div>
     </div>,
     document.body,
@@ -321,12 +363,6 @@ function ResultRow({
   const state = f['System.State'] ?? '';
   const assignee = f['System.AssignedTo'];
   const teamProject = (f['System.TeamProject'] as string | undefined) ?? '';
-  // Compact iteration path: drop the project prefix so "Foo\\Sprint 42"
-  // becomes "Sprint 42" — the project appears elsewhere when relevant.
-  const iteration = (f['System.IterationPath'] as string | undefined) ?? '';
-  const compactIteration = iteration.includes('\\')
-    ? iteration.slice(iteration.indexOf('\\') + 1)
-    : iteration;
 
   return (
     <li role="option" aria-selected={active}>
@@ -336,9 +372,9 @@ function ResultRow({
         onMouseEnter={onHover}
         onClick={onPick}
         className={cn(
-          'w-full text-left px-3 py-2 flex items-start gap-3',
+          'w-full text-left px-3.5 py-2 flex items-start gap-3',
           'transition-colors duration-75',
-          active ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]',
+          active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]',
         )}
       >
         <span
@@ -360,19 +396,14 @@ function ResultRow({
           </div>
           <div
             className={cn(
-              'text-[13px] truncate',
+              'text-[13px] leading-snug line-clamp-2 break-words',
               active ? 'text-zinc-50' : 'text-zinc-100',
             )}
           >
             {f['System.Title'] || '(untitled)'}
           </div>
-          {compactIteration && (
-            <div className="mono text-[10.5px] text-zinc-600 truncate">
-              {compactIteration}
-            </div>
-          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 pt-0.5">
           <span
             className={cn(
               'hidden sm:inline-flex h-5 items-center px-1.5 rounded text-[10.5px] font-medium',
@@ -386,5 +417,48 @@ function ResultRow({
         </div>
       </button>
     </li>
+  );
+}
+
+/** Panel footer — small brand line + copyright + love-from-Altack. Kept
+ *  calm: single row, hairline separator on top, muted text, and the
+ *  gradient is reserved for the "Giraffied" wordmark only (project rule —
+ *  gradients live exclusively on the brand mark). */
+function SearchFooter() {
+  const year = new Date().getFullYear();
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-2',
+        'px-3.5 py-2',
+        'border-t border-white/[0.06]',
+        'bg-white/[0.015]',
+      )}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span aria-hidden className="text-[12px] leading-none">🦒</span>
+        <span className="text-[11.5px] font-semibold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent">
+          Giraffied
+        </span>
+        <span className="text-zinc-700 select-none">·</span>
+        <span className="mono text-[10.5px] text-zinc-600">© {year}</span>
+      </div>
+      <div className="flex items-center gap-1 text-[10.5px] text-zinc-500">
+        <span>Made by</span>
+        <a
+          href="https://altack.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-zinc-300 hover:text-zinc-100 transition-colors"
+        >
+          Altack
+        </a>
+        <span>with</span>
+        <Heart
+          className="h-3 w-3 text-rose-400/90 fill-rose-400/70"
+          aria-label="love"
+        />
+      </div>
+    </div>
   );
 }
