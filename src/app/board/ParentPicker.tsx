@@ -109,14 +109,18 @@ export function ParentPicker({
 
   // Popover aligns to the trigger's left edge and matches its width so the
   // dropdown looks like a continuation of the input.
-  const popoverStyle: React.CSSProperties | null = rect
+  const placement = rect
     ? (() => {
         const spaceBelow = window.innerHeight - rect.bottom;
         const flipUp = spaceBelow < POPOVER_MAX_HEIGHT && rect.top > spaceBelow;
         const top = flipUp
           ? Math.max(8, rect.top - POPOVER_MAX_HEIGHT - 4)
           : rect.bottom + 4;
-        return { position: 'fixed', top, left: rect.left, width: rect.width };
+        const origin = flipUp ? 'from-bottom-left' : 'from-top-left';
+        return {
+          style: { position: 'fixed', top, left: rect.left, width: rect.width } as React.CSSProperties,
+          origin,
+        };
       })()
     : null;
 
@@ -145,13 +149,16 @@ export function ParentPicker({
         <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
       </button>
       {open &&
-        popoverStyle &&
+        placement &&
         createPortal(
           <div
             ref={popRef}
             data-no-drag
-            style={{ ...popoverStyle, zIndex: 60 }}
-            className="rounded-md border border-white/[0.08] bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+            style={{ ...placement.style, zIndex: 60 }}
+            className={cn(
+              'rounded-md overflow-hidden jfd-glass-panel jfd-popover-enter',
+              placement.origin,
+            )}
           >
             <div className="p-1.5 border-b border-white/[0.06]">
               <Input

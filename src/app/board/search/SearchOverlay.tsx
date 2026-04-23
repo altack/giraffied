@@ -1,8 +1,10 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -55,7 +57,99 @@ export function SearchOverlay({
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const pillBarRef = useRef<HTMLDivElement>(null);
   const projectName = useSettings((s) => s.projectName);
+
+  // Deferred unmount so the exit-morph animation has time to play. `visible`
+  // stays true through the exit; `exiting=true` is the cue for the morph
+  // effect below to animate the panel back to the trigger. Timeout matches
+  // the longest transition in `.jfd-search-morph` (240ms).
+  const [visible, setVisible] = useState(open);
+  const [exiting, setExiting] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      setExiting(false);
+    } else if (visible) {
+      setExiting(true);
+      const t = setTimeout(() => {
+        setVisible(false);
+        setExiting(false);
+      }, 240);
+      return () => clearTimeout(t);
+    }
+  }, [open, visible]);
+
+  // Morph-from-trigger. On enter: measure the trigger element (found via a
+  // data-attribute selector so ⌘K-driven opens work too), apply an inline
+  // transform that places the panel at the trigger's rect, then clear the
+  // transform on the next frame — the `jfd-search-morph` transition drives
+  // the animation to its resting position. On exit: measure again and re-
+  // apply the transform so the panel flies back to where the user clicked.
+  const [morphStyle, setMorphStyle] = useState<CSSProperties>({});
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const trigger = document.querySelector<HTMLElement>('[data-search-trigger]');
+
+    // Panel rect in its resting layout. For the enter path we temporarily
+    // clear any inline transform so getBoundingClientRect reads the final
+    // position, then re-apply the computed transform in the same microtask.
+    panel.style.transform = '';
+    panel.style.opacity = '';
+    const p = panel.getBoundingClientRect();
+
+    // Fallback when the trigger isn't in the DOM — reuse the calmer
+    // jfd-popover-enter shape (tiny lift + soft scale) so something still
+    // animates instead of snapping in.
+    if (!trigger) {
+      if (exiting) {
+        setMorphStyle({
+          transform: 'translateY(-4px) scale(0.98)',
+          opacity: 0,
+        });
+      } else {
+        setMorphStyle({
+          transform: 'translateY(-4px) scale(0.98)',
+          opacity: 0,
+        });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => setMorphStyle({}));
+        });
+      }
+      return;
+    }
+
+    const t = trigger.getBoundingClientRect();
+    const dx = t.left + t.width / 2 - (p.left + p.width / 2);
+    const dy = t.top + t.height / 2 - (p.top + p.height / 2);
+    const sx = Math.max(t.width / p.width, 0.08);
+    const sy = Math.max(t.height / p.height, 0.04);
+    const atTrigger: CSSProperties = {
+      transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
+      opacity: 0,
+    };
+    if (exiting) {
+      setMorphStyle(atTrigger);
+      return;
+    }
+    setMorphStyle(atTrigger);
+    // Guard against the user closing before the rAF fires — setting state on
+    // an already-unmounted panel is harmless in React 19 but the clearing
+    // would otherwise race with an exit that's already applying its own
+    // transform.
+    let canceled = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!canceled) setMorphStyle({});
+      });
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [visible, exiting]);
 
   const { results, isLoading, isTyping, isShort, error, query: debounced } =
     useWorkItemSearch(query, scope, { iterationPath }, open);
@@ -64,6 +158,30 @@ export function SearchOverlay({
     if (hasCurrentSprint) return SEARCH_SCOPES;
     return SEARCH_SCOPES.filter((s) => s !== 'sprint');
   }, [hasCurrentSprint]);
+
+  // Refs to each scope-pill button + a slider indicator. The indicator is a
+  // single absolute-positioned element that tweens left/width between pills
+  // as the active scope changes — cleaner than re-coloring each pill on every
+  // click. On first measurement it snaps into place (no from-state to animate
+  // against), subsequent scope changes animate via the inline style transition.
+  const pillRefs = useRef<Partial<Record<SearchScope, HTMLButtonElement | null>>>({});
+  const [pillIndicator, setPillIndicator] = useState<
+    { left: number; top: number; width: number; height: number } | null
+  >(null);
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const active = pillRefs.current[scope];
+    const bar = pillBarRef.current;
+    if (!active || !bar) return;
+    const br = bar.getBoundingClientRect();
+    const pr = active.getBoundingClientRect();
+    setPillIndicator({
+      left: pr.left - br.left,
+      top: pr.top - br.top,
+      width: pr.width,
+      height: pr.height,
+    });
+  }, [scope, visibleScopes, visible]);
 
   // Reset transient state each time the overlay opens — otherwise a stale
   // query/results flash from the previous open.
@@ -120,7 +238,7 @@ export function SearchOverlay({
     }
   }
 
-  if (!open) return null;
+  if (!visible) return null;
 
   return createPortal(
     <div
@@ -133,10 +251,14 @@ export function SearchOverlay({
     >
       {/* Dim the board just enough to keep attention on the panel, but NOT
           blurred — the user explicitly wanted the board to stay crisp and
-          the atmospheric effect to live in the panel + light casts. */}
+          the atmospheric effect to live in the panel + light casts. Fades
+          in/out in lockstep with the panel morph. */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-black/35"
+        className={cn(
+          'absolute inset-0 bg-black/35',
+          exiting ? 'jfd-backdrop-out' : 'jfd-backdrop-in',
+        )}
       />
 
       {/* Soft indigo/violet light casts behind the panel. Two radial gradients
@@ -146,7 +268,10 @@ export function SearchOverlay({
           eat clicks that should dismiss the overlay. */}
       <div
         aria-hidden
-        className="absolute inset-0 overflow-hidden pointer-events-none"
+        className={cn(
+          'absolute inset-0 overflow-hidden pointer-events-none',
+          exiting ? 'jfd-backdrop-out' : 'jfd-backdrop-in',
+        )}
       >
         <div
           className="absolute left-1/2 top-[5vh] -translate-x-1/2 h-[360px] w-[780px] rounded-full blur-3xl"
@@ -173,8 +298,10 @@ export function SearchOverlay({
 
       {/* The panel itself — this is where the backdrop blur lives now, so the
           panel reads as translucent glass sitting over the ambient light and
-          the (crisp) board behind. */}
+          the (crisp) board behind. Morphs to/from the search trigger via
+          inline transform + the `.jfd-search-morph` transition. */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Search work items"
@@ -185,9 +312,16 @@ export function SearchOverlay({
           // Ambient indigo glow outside the panel + deep drop shadow below.
           'shadow-[0_28px_80px_-16px_rgb(0_0_0/0.7),0_0_0_1px_rgb(129_140_248/0.06),0_0_60px_-10px_rgb(129_140_248/0.18)]',
           'flex flex-col',
-          'jfd-popover-enter',
+          'jfd-search-morph',
         )}
-        style={{ maxHeight: 'calc(100vh - 18vh)' }}
+        style={{
+          maxHeight: 'calc(100vh - 18vh)',
+          // Preserve transform-origin at center so the scale during the morph
+          // happens symmetrically; trigger position is expressed purely via
+          // translate, so origin doesn't need to shift.
+          transformOrigin: 'center',
+          ...morphStyle,
+        }}
       >
         {/* Input row */}
         <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
@@ -221,13 +355,32 @@ export function SearchOverlay({
           </button>
         </div>
 
-        {/* Scope pills */}
-        <div className="flex items-center gap-1 px-3.5 pb-2.5 border-b border-white/[0.06]">
+        {/* Scope pills — a single sliding indicator tweens behind the active
+            pill as the scope changes. Each pill is transparent-on-transparent
+            at rest; the indicator provides the active indigo fill. */}
+        <div
+          ref={pillBarRef}
+          className="relative flex items-center gap-1 px-3.5 pb-2.5 border-b border-white/[0.06]"
+        >
+          {pillIndicator && (
+            <div
+              aria-hidden
+              className={cn(
+                'absolute pointer-events-none rounded-full',
+                'bg-indigo-400/[0.14] border border-indigo-400/30 lit-top',
+                'transition-[left,top,width,height] duration-[200ms] ease-out',
+              )}
+              style={pillIndicator}
+            />
+          )}
           {visibleScopes.map((s) => {
             const active = s === scope;
             return (
               <button
                 key={s}
+                ref={(el) => {
+                  pillRefs.current[s] = el;
+                }}
                 type="button"
                 onClick={() => {
                   setScope(s);
@@ -236,11 +389,12 @@ export function SearchOverlay({
                 }}
                 aria-pressed={active}
                 className={cn(
-                  'h-6 px-2.5 rounded-full text-[11px] font-medium',
-                  'transition-colors duration-100',
+                  'relative z-[1] h-6 px-2.5 rounded-full text-[11px] font-medium',
+                  'border border-transparent',
+                  'transition-colors duration-150',
                   active
-                    ? 'bg-indigo-400/[0.14] border border-indigo-400/30 text-indigo-100 lit-top'
-                    : 'bg-white/[0.02] border border-white/[0.06] text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.05]',
+                    ? 'text-indigo-100'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]',
                 )}
               >
                 {SCOPE_LABELS[s].pill}

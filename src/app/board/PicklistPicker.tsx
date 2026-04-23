@@ -105,7 +105,7 @@ export function PicklistPicker({
     setOpen((o) => !o);
   }
 
-  const popoverStyle: React.CSSProperties | null = rect
+  const placement = rect
     ? (() => {
         const spaceBelow = window.innerHeight - rect.bottom;
         const flipUp = spaceBelow < POPOVER_MAX_HEIGHT && rect.top > spaceBelow;
@@ -117,7 +117,14 @@ export function PicklistPicker({
           8,
           Math.min(rightAligned, window.innerWidth - POPOVER_WIDTH - 8),
         );
-        return { position: 'fixed', top, left, width: POPOVER_WIDTH };
+        const alignedRight = left + POPOVER_WIDTH >= rect.right - 4;
+        const origin = flipUp
+          ? alignedRight ? 'from-bottom-right' : 'from-bottom-left'
+          : alignedRight ? 'from-top-right' : 'from-top-left';
+        return {
+          style: { position: 'fixed', top, left, width: POPOVER_WIDTH } as React.CSSProperties,
+          origin,
+        };
       })()
     : null;
 
@@ -146,13 +153,16 @@ export function PicklistPicker({
         <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
       </button>
       {open &&
-        popoverStyle &&
+        placement &&
         createPortal(
           <div
             ref={popRef}
             data-no-drag
-            style={{ ...popoverStyle, zIndex: 60 }}
-            className="rounded-md border border-white/[0.08] bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+            style={{ ...placement.style, zIndex: 60 }}
+            className={cn(
+              'rounded-md overflow-hidden jfd-glass-panel jfd-popover-enter',
+              placement.origin,
+            )}
           >
             <div className="p-1.5 border-b border-white/[0.06]">
               <Input

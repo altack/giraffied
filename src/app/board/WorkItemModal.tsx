@@ -742,27 +742,33 @@ export function WorkItemModal({
               />
             </div>
             <div className="min-h-[80px]">
-              {tab === 'comments' && (
-                <CommentsPanel
-                  workItemId={task.workItem.id}
-                  enabled={open}
-                  readOnly={readOnly}
-                />
-              )}
-              {tab === 'worklog' && (
-                <WorkLogPanel
-                  workItemId={task.workItem.id}
-                  projectId={projectId}
-                  enabled={open}
-                />
-              )}
-              {tab === 'history' && (
-                <HistoryPanel
-                  workItemId={task.workItem.id}
-                  projectId={projectId}
-                  enabled={open}
-                />
-              )}
+              {/* key={tab} remounts the wrapper on tab switch so jfd-tab-in
+                  runs its short fade+lift. The tab children were already
+                  conditionally rendered (they unmount/remount on switch), so
+                  adding the key doesn't change any preservation behavior. */}
+              <div key={tab} className="jfd-tab-in">
+                {tab === 'comments' && (
+                  <CommentsPanel
+                    workItemId={task.workItem.id}
+                    enabled={open}
+                    readOnly={readOnly}
+                  />
+                )}
+                {tab === 'worklog' && (
+                  <WorkLogPanel
+                    workItemId={task.workItem.id}
+                    projectId={projectId}
+                    enabled={open}
+                  />
+                )}
+                {tab === 'history' && (
+                  <HistoryPanel
+                    workItemId={task.workItem.id}
+                    projectId={projectId}
+                    enabled={open}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </form>

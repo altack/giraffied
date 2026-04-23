@@ -365,33 +365,38 @@ export function BoardGrid({
           {rows.map((row) => {
             const isCollapsed = collapsedSet.has(row.key);
             // --lane-hue inherits to the banner and column cells below, so both
-            // can reference the same rgb() triplet at low alpha. The wrapper
-            // owns the intra-lane 12px spacing; the outer space-y-3 handles
-            // between-lane spacing.
+            // can reference the same rgb() triplet at low alpha. The outer
+            // space-y-3 handles between-lane spacing; the .jfd-collapsible
+            // wrapper owns the banner↔content gap via its animated margin-top,
+            // so it can collapse alongside the row height.
             return (
               <div
                 key={row.key}
-                className="space-y-3"
                 style={{ '--lane-hue': row.hue } as CSSProperties}
               >
                 {row.banner({ collapsed: isCollapsed, onToggle: () => toggle(row.key) })}
-                {!isCollapsed && (
-                  <div className="grid gap-3" style={{ gridTemplateColumns }}>
-                    {columns.map((col) => (
-                      <ColumnCell
-                        key={col.id}
-                        droppableId={droppableIdFor(row.laneKey, col.id)}
-                        type={`lane-${row.laneKey}`}
-                        tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
-                        onOpen={(t) => setSelectedId(t.workItem.id)}
-                        dragDisabled={isFiltered}
-                        recentlyFocusedId={
-                          typeof recentlyFocusedId === 'number' ? recentlyFocusedId : null
-                        }
-                      />
-                    ))}
+                <div className="jfd-collapsible" data-collapsed={isCollapsed}>
+                  <div className="jfd-collapsible-inner">
+                    <div className="grid gap-3" style={{ gridTemplateColumns }}>
+                      {columns.map((col) => (
+                        <ColumnCell
+                          key={col.id}
+                          droppableId={droppableIdFor(row.laneKey, col.id)}
+                          type={`lane-${row.laneKey}`}
+                          tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
+                          onOpen={(t) => setSelectedId(t.workItem.id)}
+                          // While animating collapse, disable drops into the
+                          // shrinking region — dropping into a lane that's
+                          // mid-collapse would look broken.
+                          dragDisabled={isFiltered || isCollapsed}
+                          recentlyFocusedId={
+                            typeof recentlyFocusedId === 'number' ? recentlyFocusedId : null
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}

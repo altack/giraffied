@@ -133,7 +133,7 @@ export function AssigneeFilter({
 
   if (assignees.length === 0) return null;
 
-  const popoverStyle: CSSProperties | null = rect
+  const placement = rect
     ? (() => {
         const spaceBelow = window.innerHeight - rect.bottom;
         const flipUp = spaceBelow < POPOVER_MAX_HEIGHT && rect.top > spaceBelow;
@@ -145,7 +145,14 @@ export function AssigneeFilter({
           8,
           Math.min(rightAligned, window.innerWidth - POPOVER_WIDTH - 8),
         );
-        return { position: 'fixed', top, left, width: POPOVER_WIDTH, zIndex: 60 };
+        const alignedRight = left + POPOVER_WIDTH >= rect.right - 4;
+        const origin = flipUp
+          ? alignedRight ? 'from-bottom-right' : 'from-bottom-left'
+          : alignedRight ? 'from-top-right' : 'from-top-left';
+        return {
+          style: { position: 'fixed', top, left, width: POPOVER_WIDTH, zIndex: 60 } as CSSProperties,
+          origin,
+        };
       })()
     : null;
 
@@ -168,14 +175,14 @@ export function AssigneeFilter({
         />
       )}
       {open &&
-        popoverStyle &&
+        placement &&
         createPortal(
           <div
             ref={popRef}
-            style={popoverStyle}
+            style={placement.style}
             className={cn(
-              'jfd-popover-enter rounded-lg border border-white/[0.08]',
-              'bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden',
+              'rounded-lg overflow-hidden jfd-glass-panel jfd-popover-enter',
+              placement.origin,
             )}
             role="dialog"
             aria-label="Filter by assignee"

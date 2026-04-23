@@ -98,13 +98,17 @@ export function ContextSwitcher() {
     };
   }, [open, close]);
 
-  const popoverStyle: React.CSSProperties | null = rect
+  const placement = rect
     ? (() => {
         const spaceBelow = window.innerHeight - rect.bottom;
         const flipUp = spaceBelow < POPOVER_MAX_HEIGHT && rect.top > spaceBelow;
         const top = flipUp ? Math.max(8, rect.top - POPOVER_MAX_HEIGHT - 4) : rect.bottom + 4;
         const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8));
-        return { position: 'fixed', top, left, width: POPOVER_WIDTH };
+        const origin = flipUp ? 'from-bottom-left' : 'from-top-left';
+        return {
+          style: { position: 'fixed', top, left, width: POPOVER_WIDTH } as React.CSSProperties,
+          origin,
+        };
       })()
     : null;
 
@@ -156,12 +160,15 @@ export function ContextSwitcher() {
         <ChevronDown className="h-3 w-3 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
       </button>
       {open &&
-        popoverStyle &&
+        placement &&
         createPortal(
           <div
             ref={popRef}
-            style={{ ...popoverStyle, zIndex: 60 }}
-            className="rounded-md border border-white/[0.08] bg-[var(--color-surface-2)]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden"
+            style={{ ...placement.style, zIndex: 60 }}
+            className={cn(
+              'rounded-md overflow-hidden jfd-glass-panel jfd-popover-enter',
+              placement.origin,
+            )}
           >
             {view === 'menu' && (
               <MenuView

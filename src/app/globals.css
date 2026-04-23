@@ -310,6 +310,98 @@ body {
   animation: jfd-popover-enter 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: top right;
 }
+/* Origin variants — set on the popover root so the scale/translate pivots from
+ * the anchor edge instead of the default top-right. Picked based on whether the
+ * popover flipped above/below and whether it aligned left/right of the trigger. */
+.jfd-popover-enter.from-top-left     { transform-origin: top left; }
+.jfd-popover-enter.from-top-right    { transform-origin: top right; }
+.jfd-popover-enter.from-bottom-left  { transform-origin: bottom left; }
+.jfd-popover-enter.from-bottom-right { transform-origin: bottom right; }
+
+/* Shared translucent-glass surface for dropdown popovers. Opacity low enough
+ * that `backdrop-filter: blur()` actually reads — the older /95 surface was
+ * almost opaque, so the blur was invisible. Matches the search overlay panel
+ * material without the ambient indigo glow (dropdowns are smaller and would
+ * feel fussy with a colored halo). */
+.jfd-glass-panel {
+  background-color: rgb(20 20 24 / 0.70);
+  -webkit-backdrop-filter: blur(24px);
+          backdrop-filter: blur(24px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 20px 50px -16px rgb(0 0 0 / 0.7),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+}
+
+/* Swimlane expand/collapse morph — the grid-template-rows 0fr ↔ 1fr trick.
+ * Child must live inside `.jfd-collapsible-inner` with `overflow: hidden` so
+ * its content gets clipped during the animation. margin-top is animated too,
+ * so the 12px gap between banner and content disappears in lockstep — without
+ * it, collapsed lanes would leave a ghost gap below their banner. */
+.jfd-collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: 12px;
+  opacity: 1;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin-top 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease-out;
+}
+.jfd-collapsible[data-collapsed='true'] {
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  opacity: 0;
+}
+.jfd-collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Modal backdrop — soft dim + blur that fades with the modal. Shared by the
+ * work-item modal wrapper in DraggableModal. */
+@keyframes jfd-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes jfd-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.jfd-backdrop-in  { animation: jfd-backdrop-in  160ms ease-out both; }
+.jfd-backdrop-out { animation: jfd-backdrop-out 140ms ease-in  both; }
+
+/* Draggable-modal enter/exit — fade + tiny lift + gentle scale. Kept shorter
+ * than a typical sheet so it doesn't feel sluggish; transform-origin stays
+ * at center since the modal can be moved anywhere on screen by the user. */
+@keyframes jfd-modal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+@keyframes jfd-modal-out {
+  from { opacity: 1; transform: translateY(0)   scale(1); }
+  to   { opacity: 0; transform: translateY(4px) scale(0.985); }
+}
+.jfd-modal-in  { animation: jfd-modal-in  180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.jfd-modal-out { animation: jfd-modal-out 140ms cubic-bezier(0.4, 0, 1, 1)     both; }
+
+/* Tab content cross-fade. Tiny translate so the swap reads as a reveal rather
+ * than a flash. */
+@keyframes jfd-tab-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.jfd-tab-in { animation: jfd-tab-in 160ms ease-out both; }
+
+/* Search-overlay morph — the panel starts at the trigger's position/size and
+ * slides/scales to its resting layout. Initial transform is applied inline
+ * (measured at open time); the transition below drives the animation when the
+ * inline transform is cleared on the next frame. */
+.jfd-search-morph {
+  transition:
+    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity   180ms ease-out;
+}
 
 /* Scrollbar refinement — thin, hairline, only visible on hover. */
 *::-webkit-scrollbar {

@@ -25,6 +25,12 @@ export function SearchTrigger({ onOpen }: { onOpen: () => void }) {
       onClick={onOpen}
       title="Search work items"
       aria-label="Open search"
+      // data-search-trigger: the SearchOverlay finds this element at
+      // open/close time so it can morph its panel from/back to the trigger's
+      // position. A DOM query (not a React ref) is used deliberately so the
+      // ⌘K global keyboard shortcut can also drive the morph, without having
+      // to thread a ref through three components.
+      data-search-trigger=""
       className={cn(
         'group inline-flex items-center gap-2 h-7 w-[220px] px-2 rounded-md text-left',
         'bg-white/[0.03] border border-white/[0.06] lit-top',

@@ -48,6 +48,26 @@ export function DraggableModal({
   const [pos, setPos] = useState<Position | null>(null);
   const dragOffset = useRef<Position | null>(null);
 
+  // Visual visibility — stays true through the exit animation so the exit
+  // classes have time to run before the portal unmounts. Flipping `open`
+  // false triggers the out state, which clears to `visible=false` after
+  // ~180ms (matching the jfd-modal-out keyframe duration in globals.css).
+  const [visible, setVisible] = useState(open);
+  const [exiting, setExiting] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      setExiting(false);
+    } else if (visible) {
+      setExiting(true);
+      const t = setTimeout(() => {
+        setVisible(false);
+        setExiting(false);
+      }, 180);
+      return () => clearTimeout(t);
+    }
+  }, [open, visible]);
+
   // Center on open. Depends on `open` flip, not position, so dragging the panel
   // doesn't retrigger. Reads current panel size after layout to center accurately.
   useLayoutEffect(() => {
@@ -114,7 +134,7 @@ export function DraggableModal({
     }
   }, []);
 
-  if (!open) return null;
+  if (!visible) return null;
 
   const style: React.CSSProperties = {
     width,
@@ -125,19 +145,35 @@ export function DraggableModal({
   };
 
   return createPortal(
-    <div
-      ref={panelRef}
-      role="dialog"
-      aria-modal="false"
-      className={cn(
-        'fixed z-50 flex flex-col',
-        'rounded-xl border border-white/[0.08]',
-        'bg-[var(--color-surface-1)]/95 backdrop-blur-xl',
-        'shadow-2xl shadow-black/50',
-        'lit-top',
-      )}
-      style={style}
-    >
+    <>
+      {/* Subtle dim-backdrop so the modal feels anchored to the board. Kept
+       * pointer-events-none on purpose: this dialog is aria-modal="false" and
+       * draggable, meaning the user can interact with the board behind it.
+       * Capturing pointer events here would break that contract. */}
+      <div
+        aria-hidden
+        className={cn(
+          'fixed inset-0 z-40 pointer-events-none bg-black/25',
+          exiting ? 'jfd-backdrop-out' : 'jfd-backdrop-in',
+        )}
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="false"
+        className={cn(
+          'fixed z-50 flex flex-col',
+          'rounded-xl border border-white/[0.08]',
+          'bg-[var(--color-surface-1)]/95 backdrop-blur-xl',
+          'shadow-2xl shadow-black/50',
+          'lit-top',
+          // Hold the animation back until `pos` is set — first render measures
+          // the panel with visibility:hidden, and starting `jfd-modal-in` then
+          // would run half the animation invisibly before the user sees it.
+          exiting ? 'jfd-modal-out' : pos ? 'jfd-modal-in' : undefined,
+        )}
+        style={style}
+      >
       <div
         className="flex items-center gap-2 pl-3 pr-2 py-2 border-b border-white/[0.06] cursor-grab active:cursor-grabbing select-none touch-none"
         onPointerDown={onHeaderPointerDown}
@@ -165,7 +201,8 @@ export function DraggableModal({
           {footer}
         </div>
       )}
-    </div>,
+      </div>
+    </>,
     document.body,
   );
 }
