@@ -253,7 +253,7 @@ export function SearchOverlay({
               setQuery(e.target.value);
               setActiveIdx(0);
             }}
-            placeholder="Search title, description, tags, repro steps… or paste #id"
+            placeholder="Search title, description, tags… or paste #id"
             aria-label="Search query"
             className={cn(
               'flex-1 bg-transparent border-0 outline-none',
