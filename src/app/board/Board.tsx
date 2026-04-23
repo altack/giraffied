@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CalendarOff, Loader2 } from 'lucide-react';
 import { useTaskboard } from '@/ado/hooks/useTaskboard';
-import type { AdoIdentity } from '@/ado/types';
+import type { AdoIdentity, AdoWorkItem } from '@/ado/types';
 import { AdoError } from '@/ado/client';
 import { useSettings } from '@/state/settings.store';
 import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { TopBar } from './TopBar';
 import { BoardGrid } from './BoardGrid';
 import { assigneeKey, assigneesOnBoard } from './assigneesOnBoard';
+import { SearchOverlay } from './search/SearchOverlay';
+import { ExternalWorkItemModal } from './search/ExternalWorkItemModal';
 
 export function Board() {
   const {
@@ -69,6 +71,45 @@ export function Board() {
 
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
 
+  // Search overlay + the work item chosen from it. We keep the AdoWorkItem
+  // around (rather than just an id) because the search hook has already
+  // fetched the full item — passing it straight in avoids a second round-trip
+  // before the modal can render anything.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchPickedItem, setSearchPickedItem] = useState<AdoWorkItem | null>(
+    null,
+  );
+
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+
+  // Global ⌘K / Ctrl+K opens the search overlay. `/` also opens it as long
+  // as the user isn't already typing in another input — same affordance as
+  // Linear / Sentry / GitHub. Inputs/textareas/contentEditable get passed
+  // through untouched.
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      const isTyping =
+        !!tgt &&
+        (tgt.tagName === 'INPUT' ||
+          tgt.tagName === 'TEXTAREA' ||
+          tgt.isContentEditable);
+
+      const isK = e.key === 'k' || e.key === 'K';
+      if (isK && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+        return;
+      }
+      if (e.key === '/' && !isTyping && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // If the selected assignee disappears from the board (refetch removed their
   // cards, they were reassigned, etc.) silently clear the filter — otherwise
   // the view would be stuck empty with no visible affordance.
@@ -126,6 +167,7 @@ export function Board() {
         assignees={boardAssignees}
         assigneeFilter={assigneeFilter}
         onAssigneeFilter={setAssigneeFilter}
+        onOpenSearch={openSearch}
       />
       <BoardBody
         iterationLoading={iterationLoading}
@@ -139,6 +181,29 @@ export function Board() {
         assignees={modalAssignees}
         assigneeFilter={assigneeFilter}
       />
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelect={(w) => {
+          setSearchOpen(false);
+          setSearchPickedItem(w);
+        }}
+        iterationPath={iteration?.path}
+        hasCurrentSprint={!!iteration}
+      />
+      {searchPickedItem && (
+        <ExternalWorkItemModal
+          workItem={searchPickedItem}
+          // When there's no current sprint, the board has no columns — pass
+          // an empty array; WorkItemModal's state dropdown uses
+          // useWorkItemStates (full state list from the WIT definition) and
+          // only falls back to columns, so this stays functional.
+          columns={board?.columns ?? []}
+          iterationId={iteration?.id}
+          boardAssignees={modalAssignees}
+          onClose={() => setSearchPickedItem(null)}
+        />
+      )}
     </div>
   );
 }

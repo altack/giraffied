@@ -169,6 +169,7 @@ export const DEFAULT_WORKITEM_FIELDS = [
   'System.Title',
   'System.State',
   'System.WorkItemType',
+  'System.TeamProject',
   'System.Rev',
   'System.Description',
   'System.AssignedTo',
@@ -359,6 +360,23 @@ export interface AdoTeamFieldValues {
   defaultValue: string;
   values: Array<{ value: string; includeChildren: boolean }>;
   url?: string;
+}
+
+/** Flat-query result from `POST /_apis/wit/wiql`. Tree/link queries (with
+ *  `workItemRelations`) aren't used by the omnibar — we only issue flat
+ *  selects. Only `System.Id` is guaranteed populated; everything else is
+ *  batch-fetched separately so we can control exactly which fields come back. */
+export interface AdoWiqlRef {
+  id: number;
+  url: string;
+}
+
+export interface AdoWiqlResult {
+  queryType: string;
+  queryResultType: string;
+  asOf?: string;
+  columns?: Array<{ referenceName: string; name: string; url: string }>;
+  workItems: AdoWiqlRef[];
 }
 
 /** Shape of an item returned from `GET /wit/workitems/{id}/updates`. Each entry is a

@@ -6,6 +6,7 @@ import { ContextSwitcher } from './ContextSwitcher';
 import { OverallTracking } from './OverallTracking';
 import { AssigneeFilter } from './AssigneeFilter';
 import type { BoardAssignee } from './assigneesOnBoard';
+import { SearchTrigger } from './search/SearchTrigger';
 
 function formatRange(iteration: AdoIteration | undefined): string | null {
   if (!iteration) return null;
@@ -26,6 +27,7 @@ export function TopBar({
   assignees,
   assigneeFilter,
   onAssigneeFilter,
+  onOpenSearch,
 }: {
   iteration: AdoIteration | undefined;
   onRefresh: () => void;
@@ -37,6 +39,7 @@ export function TopBar({
   assignees: BoardAssignee[];
   assigneeFilter: string | null;
   onAssigneeFilter: (key: string | null) => void;
+  onOpenSearch: () => void;
 }) {
   const range = formatRange(iteration);
 
@@ -57,6 +60,7 @@ export function TopBar({
         <ContextSwitcher />
       </div>
       <div className="flex items-center gap-2">
+        <SearchTrigger onOpen={onOpenSearch} />
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"

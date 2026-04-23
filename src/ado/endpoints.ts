@@ -17,6 +17,7 @@ import type {
   AdoTeam,
   AdoTeamFieldValues,
   AdoTeamMember,
+  AdoWiqlResult,
   AdoWorkItem,
   AdoWorkItemComment,
   AdoWorkItemType,
@@ -508,4 +509,46 @@ export async function getWorkItemsBatch(
     ),
   );
   return results.flatMap((r) => r.value);
+}
+
+/** Same as getWorkItemsBatch but uses the org-scoped path (no project segment).
+ *  ADO accepts this form and returns items from any project the caller can see —
+ *  needed for org-scope omnibar search where results may span multiple projects. */
+export async function getWorkItemsBatchOrg(
+  ids: number[],
+  fields: readonly string[] = DEFAULT_WORKITEM_FIELDS,
+): Promise<AdoWorkItem[]> {
+  if (ids.length === 0) return [];
+  const CHUNK = 200;
+  const chunks: number[][] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      ado<AdoList<AdoWorkItem>>({
+        path: `/_apis/wit/workitemsbatch`,
+        method: 'POST',
+        body: { ids: chunk, fields },
+      }),
+    ),
+  );
+  return results.flatMap((r) => r.value);
+}
+
+/** Run a WIQL query. When `projectId` is provided, the query is scoped to that
+ *  project; otherwise it runs at org level (cross-project). WIQL returns ids
+ *  only — batch-fetch details with `getWorkItemsBatch` / `getWorkItemsBatchOrg`. */
+export function queryWiql(
+  wiql: string,
+  projectId?: string,
+  top = 50,
+): Promise<AdoWiqlResult> {
+  const base = projectId
+    ? `/${encodeURIComponent(projectId)}/_apis/wit/wiql`
+    : `/_apis/wit/wiql`;
+  return ado<AdoWiqlResult>({
+    path: `${base}?$top=${top}`,
+    method: 'POST',
+    body: { query: wiql },
+  });
 }
