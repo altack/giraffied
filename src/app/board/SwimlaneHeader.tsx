@@ -2,7 +2,7 @@ import { type MouseEvent, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
-import { parseTags, workItemTypeStyle } from './workItemVisuals';
+import { parseTags, stateChipTone, workItemTypeStyle } from './workItemVisuals';
 import { CopyLinkButton } from './CopyLinkButton';
 import { CreateTaskButton } from './CreateTaskButton';
 import { OpenLinkButton } from './OpenLinkButton';
@@ -12,10 +12,12 @@ import { isSelectingTextIn } from './selection';
 function BannerShell({
   collapsed,
   onToggle,
+  isRecentlyFocused,
   children,
 }: {
   collapsed: boolean;
   onToggle: () => void;
+  isRecentlyFocused?: boolean;
   children: ReactNode;
 }) {
   // Clicking anywhere on the banner background toggles collapse. Opening the
@@ -35,6 +37,7 @@ function BannerShell({
       className={cn(
         'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left cursor-pointer',
         'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
+        isRecentlyFocused && 'jfd-focus-hint',
       )}
       // Subtle horizontal bleed of the inherited --lane-hue — feels like the
       // lane's color "emanates" from the banner and spills into the cells
@@ -75,6 +78,7 @@ export function SwimlaneBanner({
   onToggle,
   onOpen,
   onCreate,
+  isRecentlyFocused,
 }: {
   row: AdoWorkItem;
   totalTasks: number;
@@ -83,14 +87,16 @@ export function SwimlaneBanner({
   onToggle: () => void;
   onOpen?: () => void;
   onCreate?: () => void;
+  isRecentlyFocused?: boolean;
 }) {
   const f = row.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
   const tags = parseTags(f['System.Tags']);
   const assignee = f['System.AssignedTo'];
+  const state = f['System.State'];
 
   return (
-    <BannerShell collapsed={collapsed} onToggle={onToggle}>
+    <BannerShell collapsed={collapsed} onToggle={onToggle} isRecentlyFocused={isRecentlyFocused}>
       <span
         className="h-1.5 w-1.5 rounded-full shrink-0"
         style={{ backgroundColor: type.dot }}
@@ -98,6 +104,17 @@ export function SwimlaneBanner({
       />
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
+      {state && (
+        <span
+          className={cn(
+            'shrink-0 inline-flex items-center rounded-sm border px-1.5 py-0.5',
+            'text-[10px] font-medium uppercase tracking-[0.06em] leading-none',
+            stateChipTone(state),
+          )}
+        >
+          {state}
+        </span>
+      )}
       {/* Span (not button) so the title text is user-selectable — buttons ship
        * with `user-select: none` in several UAs. A click that's actually a text
        * selection is passed through to the shell handler, which also ignores it. */}
@@ -173,14 +190,16 @@ export function UnparentedBanner({
   collapsed,
   onToggle,
   onCreate,
+  isRecentlyFocused,
 }: {
   totalTasks: number;
   collapsed: boolean;
   onToggle: () => void;
   onCreate?: () => void;
+  isRecentlyFocused?: boolean;
 }) {
   return (
-    <BannerShell collapsed={collapsed} onToggle={onToggle}>
+    <BannerShell collapsed={collapsed} onToggle={onToggle} isRecentlyFocused={isRecentlyFocused}>
       <span className="text-zinc-300 font-medium">Everything else</span>
       <span className="text-[11px] text-zinc-600 shrink-0">
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint

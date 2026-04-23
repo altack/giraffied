@@ -80,6 +80,40 @@ export function laneHueRgb(type: string | undefined): string {
   }
 }
 
+/** Tailwind classes for the parent-row state chip (bg + border + text), mapped
+ *  by case-insensitive state name so "Done" / "DONE" / "done" all match. Falls
+ *  back to a neutral white tint for custom or unknown states — better to show
+ *  "QA Verified" in neutral than not at all. */
+export function stateChipTone(state: string): string {
+  const s = state.trim().toLowerCase();
+  if (s === 'done' || s === 'closed' || s === 'completed') {
+    return 'bg-emerald-400/[0.10] border-emerald-400/25 text-emerald-300';
+  }
+  if (s === 'resolved' || s === 'in review') {
+    return 'bg-violet-400/[0.10] border-violet-400/25 text-violet-300';
+  }
+  if (s === 'active' || s === 'in progress' || s === 'doing' || s === 'committed') {
+    return 'bg-sky-400/[0.10] border-sky-400/25 text-sky-300';
+  }
+  if (
+    s === 'new' ||
+    s === 'approved' ||
+    s === 'ready' ||
+    s === 'in planning' ||
+    s === 'open tasks'
+  ) {
+    return 'bg-amber-400/[0.10] border-amber-400/25 text-amber-200';
+  }
+  if (s === 'blocked' || s === 'on hold' || s === 'rejected' || s === 'cancelled') {
+    return 'bg-rose-400/[0.10] border-rose-400/25 text-rose-300';
+  }
+  if (s === 'removed') {
+    return 'bg-white/[0.02] border-white/[0.06] text-zinc-600';
+  }
+  // to do, proposed, opened, anything custom
+  return 'bg-white/[0.05] border-white/[0.10] text-zinc-300';
+}
+
 export function parseTags(tags: string | undefined): string[] {
   if (!tags) return [];
   return tags

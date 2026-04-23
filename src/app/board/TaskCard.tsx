@@ -14,12 +14,16 @@ export function TaskCard({
   dragSnapshot,
   onOpen,
   dragDisabled,
+  isRecentlyFocused,
 }: {
   task: TaskOnBoard;
   dragProvided?: DraggableProvided;
   dragSnapshot?: DraggableStateSnapshot;
   onOpen?: (task: TaskOnBoard) => void;
   dragDisabled?: boolean;
+  /** Brief pulsing ring after the lane was just expanded or its modal closed —
+   *  helps the user re-locate the card after returning to the board. */
+  isRecentlyFocused?: boolean;
 }) {
   const f = task.workItem.fields;
   const type = workItemTypeStyle(f['System.WorkItemType']);
@@ -77,6 +81,7 @@ export function TaskCard({
         'transition-colors duration-150',
         'lit-top',
         isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-white/[0.08]',
+        isRecentlyFocused && !isDragging && 'jfd-focus-hint',
       )}
     >
       {/* Drag trigger layer. hello-pangea/dnd binds its mousedown sensor on

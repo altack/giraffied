@@ -76,6 +76,12 @@ export function BoardGrid({
   // the overlay and the query cache takes over again.
   const [overlay, setOverlay] = useState<TaskboardData | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // The work item that most recently received focus (a lane was just expanded,
+  // or the modal just closed on this id). Drives a brief pulsing ring via
+  // `jfd-focus-hint` so the user can re-locate the card after returning to the
+  // board. `'unparented'` is the sentinel for the Everything-else lane banner
+  // (it has no work item id).
+  const [recentlyFocusedId, setRecentlyFocusedId] = useState<number | 'unparented' | null>(null);
   // `null` = dialog closed. Number = parent lane id. `0` sentinel = unparented.
   // We distinguish "unparented" from "null/closed" by using a separate flag so
   // the dialog's `defaultParentId` can be `null` without being mistaken for closed.
@@ -145,6 +151,14 @@ export function BoardGrid({
     if (selectedId != null && !selectedTask) setSelectedId(null);
   }, [selectedId, selectedTask]);
 
+  // Auto-clear the focus hint a beat after the animation finishes (2.4s) so the
+  // next focus event on the same id re-mounts the class and re-fires the pulse.
+  useEffect(() => {
+    if (recentlyFocusedId == null) return;
+    const t = setTimeout(() => setRecentlyFocusedId(null), 2600);
+    return () => clearTimeout(t);
+  }, [recentlyFocusedId]);
+
   const org = useSettings((s) => s.org);
   const projectId = useSettings((s) => s.projectId);
   const teamId = useSettings((s) => s.teamId);
@@ -163,7 +177,18 @@ export function BoardGrid({
 
   const toggle = (key: string) => {
     if (!contextKey) return;
+    const wasCollapsed = collapsedSet.has(key);
     toggleInStore(contextKey, key);
+    // Highlight on expand only — collapsing hides the lane's contents, so a
+    // ring would just flash before disappearing.
+    if (wasCollapsed) {
+      if (key === 'lane-unparented') {
+        setRecentlyFocusedId('unparented');
+      } else {
+        const rowId = Number(key.replace(/^lane-/, ''));
+        if (Number.isFinite(rowId)) setRecentlyFocusedId(rowId);
+      }
+    }
   };
 
   const rows: Row[] = swimlanes.map((lane) => ({
@@ -180,6 +205,7 @@ export function BoardGrid({
         onToggle={onToggle}
         onOpen={() => setSelectedId(lane.row.id)}
         onCreate={() => setCreateFor({ parentId: lane.row.id })}
+        isRecentlyFocused={recentlyFocusedId === lane.row.id}
       />
     ),
     tasks: lane.tasks,
@@ -196,6 +222,7 @@ export function BoardGrid({
           collapsed={collapsed}
           onToggle={onToggle}
           onCreate={() => setCreateFor({ parentId: null })}
+          isRecentlyFocused={recentlyFocusedId === 'unparented'}
         />
       ),
       tasks: unparented,
@@ -358,6 +385,9 @@ export function BoardGrid({
                         tasks={row.tasks.filter((t) => t.taskboard.columnId === col.id)}
                         onOpen={(t) => setSelectedId(t.workItem.id)}
                         dragDisabled={isFiltered}
+                        recentlyFocusedId={
+                          typeof recentlyFocusedId === 'number' ? recentlyFocusedId : null
+                        }
                       />
                     ))}
                   </div>
@@ -373,7 +403,12 @@ export function BoardGrid({
           task={selectedTask}
           columns={columns}
           open
-          onClose={() => setSelectedId(null)}
+          onClose={() => {
+            // Hand the focus hint back to the closed work item so the user can
+            // re-locate it on the board after the modal disappears.
+            if (selectedId != null) setRecentlyFocusedId(selectedId);
+            setSelectedId(null);
+          }}
           iterationId={iterationId}
           boardAssignees={assignees}
         />
@@ -419,12 +454,14 @@ function ColumnCell({
   tasks,
   onOpen,
   dragDisabled,
+  recentlyFocusedId,
 }: {
   droppableId: string;
   type: string;
   tasks: TaskOnBoard[];
   onOpen: (task: TaskOnBoard) => void;
   dragDisabled: boolean;
+  recentlyFocusedId: number | null;
 }) {
   return (
     <Droppable droppableId={droppableId} type={type} isDropDisabled={dragDisabled}>
@@ -465,6 +502,7 @@ function ColumnCell({
                   dragSnapshot={dragSnapshot}
                   onOpen={onOpen}
                   dragDisabled={dragDisabled}
+                  isRecentlyFocused={recentlyFocusedId === t.workItem.id}
                 />
               )}
             </Draggable>

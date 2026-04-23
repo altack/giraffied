@@ -269,6 +269,31 @@ body {
 }
 
 
+/* Focus hint — soft pulsing ring that briefly highlights a card or lane banner
+ * after it gains focus (lane just expanded, modal just closed). Drawn with an
+ * ::after overlay (inset -3px, slightly larger radius than the rounded-md host)
+ * so it doesn't fight the host's box-shadow / lit-top. Auto-fades over ~2.4s;
+ * BoardGrid clears `recentlyFocusedId` shortly after so the next focus re-fires. */
+@keyframes jfd-focus-hint {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  65%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.jfd-focus-hint {
+  position: relative;
+}
+.jfd-focus-hint::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9px;
+  pointer-events: none;
+  border: 1.5px solid rgb(129 140 248 / 0.55);
+  box-shadow: 0 0 0 4px rgb(129 140 248 / 0.10);
+  animation: jfd-focus-hint 2400ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
 /* Popover enter — fade + tiny lift. Used by the assignee filter popover and
  * any other transient panel that wants a calm, non-dramatic appearance. */
 @keyframes jfd-popover-enter {
