@@ -9,22 +9,26 @@ export function PinButton({
   pinned,
   onToggle,
   label,
+  disabled = false,
 }: {
   pinned: boolean;
   onToggle: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   const Icon = pinned ? PinOff : Pin;
   return (
     <button
       type="button"
       onClick={onToggle}
+      disabled={disabled}
       aria-label={pinned ? `Unpin ${label}` : `Pin ${label}`}
       title={pinned ? 'Unpin' : 'Pin to top'}
       className={cn(
         'inline-flex items-center justify-center h-5 w-5 rounded',
         'text-zinc-600 hover:text-zinc-200 hover:bg-white/[0.06]',
         'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+        'disabled:hover:bg-transparent disabled:cursor-not-allowed',
         'transition-opacity transition-colors duration-150',
       )}
     >

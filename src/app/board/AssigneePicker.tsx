@@ -28,11 +28,13 @@ export function AssigneePicker({
   onChange,
   boardAssignees,
   buttonClassName,
+  disabled = false,
 }: {
   value: AdoIdentity | null;
   onChange: (a: AdoIdentity | null) => void;
   boardAssignees: AdoIdentity[];
   buttonClassName?: string;
+  disabled?: boolean;
 }) {
   const { data: members, isLoading: membersLoading, isError } = useTeamMembers();
   const [open, setOpen] = useState(false);
@@ -110,6 +112,7 @@ export function AssigneePicker({
   );
 
   function toggle() {
+    if (disabled) return;
     if (!open && btnRef.current) {
       setRect(btnRef.current.getBoundingClientRect());
     }
@@ -134,12 +137,14 @@ export function AssigneePicker({
       <button
         ref={btnRef}
         type="button"
+        disabled={disabled}
         onClick={toggle}
         className={cn(
           'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px] text-left',
           'bg-white/[0.03] border border-white/[0.08] text-zinc-100',
           'hover:bg-white/[0.05]',
           'focus-visible:outline-none focus-visible:border-indigo-400/40 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
+          'disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/[0.03]',
           'transition-colors duration-150',
           buttonClassName,
         )}

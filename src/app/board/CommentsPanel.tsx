@@ -63,9 +63,13 @@ function formatError(err: unknown): string {
 export function CommentsPanel({
   workItemId,
   enabled,
+  readOnly = false,
 }: {
   workItemId: number;
   enabled: boolean;
+  /** Hide the composer and per-comment edit/delete actions. The list itself
+   *  stays visible — comments are useful context even when you can't add. */
+  readOnly?: boolean;
 }) {
   const projectId = useSettings((s) => s.projectId);
   const queryClient = useQueryClient();
@@ -205,41 +209,43 @@ export function CommentsPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div
-        id="comments-composer"
-        className="rounded-md border border-white/[0.06] bg-white/[0.02] p-2 space-y-2"
-      >
-        <DescriptionEditor
-          value={composer}
-          onChange={setComposer}
-          uploadFile={uploadFile}
-          placeholder="Write a comment…"
-          variant="minimal"
-        />
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            {composerError && (
-              <div className="text-[11px] text-red-300/80 mono truncate">
-                {composerError}
-              </div>
-            )}
+      {!readOnly && (
+        <div
+          id="comments-composer"
+          className="rounded-md border border-white/[0.06] bg-white/[0.02] p-2 space-y-2"
+        >
+          <DescriptionEditor
+            value={composer}
+            onChange={setComposer}
+            uploadFile={uploadFile}
+            placeholder="Write a comment…"
+            variant="minimal"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              {composerError && (
+                <div className="text-[11px] text-red-300/80 mono truncate">
+                  {composerError}
+                </div>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={handleSend}
+              disabled={postComment.isPending || isEmptyHtml(composer)}
+            >
+              {postComment.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Comment
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={handleSend}
-            disabled={postComment.isPending || isEmptyHtml(composer)}
-          >
-            {postComment.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5" />
-            )}
-            Comment
-          </Button>
         </div>
-      </div>
+      )}
 
       {actionError && (
         <div className="text-[11px] text-red-300/80 mono">{actionError}</div>
@@ -263,7 +269,10 @@ export function CommentsPanel({
             <li key={c.commentId}>
               <CommentRow
                 comment={c}
-                mine={isOwnComment(c, me.data?.authenticatedUser)}
+                // `mine` drives whether Edit/Delete hover actions render. In
+                // read-only mode nobody can act, regardless of authorship —
+                // force false to keep the UI honest.
+                mine={!readOnly && isOwnComment(c, me.data?.authenticatedUser)}
                 editing={editingId === c.commentId}
                 isSavingEdit={
                   editComment.isPending && editComment.variables?.id === c.commentId

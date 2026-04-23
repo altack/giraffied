@@ -21,11 +21,13 @@ export function MultiPicklistPicker({
   options,
   onChange,
   placeholder = 'None',
+  disabled = false,
 }: {
   values: string[];
   options: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -83,6 +85,7 @@ export function MultiPicklistPicker({
   }, [filter, options, values]);
 
   function toggle() {
+    if (disabled) return;
     if (!open && btnRef.current) {
       setRect(btnRef.current.getBoundingClientRect());
     }
@@ -90,6 +93,7 @@ export function MultiPicklistPicker({
   }
 
   function add(opt: string) {
+    if (disabled) return;
     if (values.some((v) => v.toLowerCase() === opt.toLowerCase())) return;
     onChange([...values, opt]);
     setFilter('');
@@ -97,6 +101,7 @@ export function MultiPicklistPicker({
   }
 
   function remove(opt: string) {
+    if (disabled) return;
     onChange(values.filter((v) => v !== opt));
   }
 
@@ -133,29 +138,33 @@ export function MultiPicklistPicker({
           className="inline-flex items-center gap-0.5 rounded bg-white/[0.06] pl-2 pr-0.5 py-0.5 text-[11px] text-zinc-200 lit-top"
         >
           {v}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => remove(v)}
-            aria-label={`Remove ${v}`}
-            className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
-          >
-            <X className="h-3 w-3" />
-          </button>
+          {!disabled && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => remove(v)}
+              aria-label={`Remove ${v}`}
+              className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </span>
       ))}
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        aria-label="Add value"
-        className={cn(
-          'inline-flex ml-auto items-center justify-center h-5 w-5 rounded',
-          'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06] transition-colors',
-        )}
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
+      {!disabled && (
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={toggle}
+          aria-label="Add value"
+          className={cn(
+            'inline-flex ml-auto items-center justify-center h-5 w-5 rounded',
+            'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06] transition-colors',
+          )}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      )}
       {open &&
         popoverStyle &&
         createPortal(

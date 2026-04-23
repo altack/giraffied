@@ -174,6 +174,20 @@ Hairline dividers (`border-white/[0.06]` full-width via `-mx-4`) separate the zo
 
 ## Remaining
 
+### Phase 11 — Cross-project editing from omnibar search (nice-to-have)
+- Org-scope search can return items in any project the user can see, but every
+  write path in `WorkItemModal` (PATCH fields, comments, attachments, status)
+  uses `useSettings.projectId` in the URL — which is the *current board's*
+  project, not the item's. So cross-project items open in read-only mode
+  today (banner + all inputs disabled) and the user has to hop to ADO to
+  edit.
+- To lift this, plumb a per-item `projectId` override through every ADO call
+  in the modal (and `useWorkItemFull`, `useComments`, `uploadAttachment`,
+  `patchWorkItemFields` — basically everything). Not a lot of code, but
+  touches every endpoint call inside the modal. Worth doing if org search
+  gets real use; skippable if 99% of searches stay within the current
+  project.
+
 ### Phase 7.5 — Additional filters (nice-to-have)
 - Tag and parent-story chips alongside the assignee filter if users ask for them — the current single-chip assignee filter already covers the 90% case.
 

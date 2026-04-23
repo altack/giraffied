@@ -130,7 +130,7 @@ export function PicklistSingleWidget({
 export function PicklistMultiWidget({
   value,
   onChange,
-  disabled: _disabled,
+  disabled,
   control,
 }: WidgetProps<string[]>) {
   return (
@@ -138,6 +138,7 @@ export function PicklistMultiWidget({
       values={value ?? []}
       options={control.allowedValues ?? []}
       onChange={onChange}
+      disabled={disabled || control.readOnly}
       placeholder={
         (control.allowedValues ?? []).length === 0
           ? 'No values defined in ADO'
@@ -152,13 +153,15 @@ export function PicklistMultiWidget({
 export function IdentityWidget({
   value,
   onChange,
-  control: _control,
+  disabled,
+  control,
 }: WidgetProps<AdoIdentity | null>) {
   return (
     <AssigneePicker
       value={value ?? null}
       onChange={(next) => onChange(next as AdoIdentity | null)}
       boardAssignees={[]}
+      disabled={disabled || control.readOnly}
     />
   );
 }

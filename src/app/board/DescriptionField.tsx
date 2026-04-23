@@ -16,15 +16,19 @@ export function DescriptionField({
   onChange,
   uploadFile,
   placeholder = 'Add a description…',
+  readOnly = false,
 }: {
   value: string;
   onChange: (html: string) => void;
   uploadFile?: (file: File) => Promise<UploadedAttachment>;
   placeholder?: string;
+  /** Renders the prose without the click-to-edit affordance and never mounts
+   *  the editor. */
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
 
-  if (editing) {
+  if (editing && !readOnly) {
     return (
       <DescriptionEditor
         value={value}
@@ -39,6 +43,22 @@ export function DescriptionField({
   }
 
   const isEmpty = !value || value.trim() === '' || /^<(p|div|br)[^>]*>(\s|&nbsp;)*<\/?(p|div)?>?$/i.test(value.trim());
+
+  // In read-only mode the wrapper is a plain container — no button semantics,
+  // no hover/focus affordances, no click handlers. Prose still renders the same.
+  if (readOnly) {
+    return (
+      <div
+        className={cn(
+          'jfd-description-body rounded-md px-3 py-2 min-h-[40px]',
+          'text-[13px] leading-[1.5] text-zinc-300',
+          isEmpty && 'text-zinc-600 italic',
+        )}
+      >
+        {isEmpty ? placeholder : <RichTextRenderer html={value} />}
+      </div>
+    );
+  }
 
   return (
     <div

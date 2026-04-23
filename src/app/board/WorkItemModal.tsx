@@ -10,6 +10,8 @@ import {
 import {
   AlertCircle,
   ChevronRight,
+  ExternalLink,
+  Eye,
   Save,
   History as HistoryIcon,
   Loader2,
@@ -47,7 +49,7 @@ import { cn } from '@/lib/cn';
 import { AssigneePicker } from './AssigneePicker';
 import { Avatar } from './Avatar';
 import { CommentsPanel } from './CommentsPanel';
-import { CopyLinkButton } from './CopyLinkButton';
+import { CopyLinkButton, workItemUrl } from './CopyLinkButton';
 import { OpenLinkButton } from './OpenLinkButton';
 import { DescriptionField } from './DescriptionField';
 import { HistoryPanel } from './HistoryPanel';
@@ -254,6 +256,16 @@ interface WorkItemModalProps {
   onClose: () => void;
   iterationId: string;
   boardAssignees: AdoIdentity[];
+  /** When true, disables every edit affordance — inputs, composers, pin
+   *  toggles, the Save button — and shows a banner explaining why. Used by
+   *  `ExternalWorkItemModal` when opening a search result that lives in a
+   *  different project than the current board, since every write endpoint in
+   *  this modal assumes the current project path. */
+  readOnly?: boolean;
+  /** Optional project name of the work item (e.g. `System.TeamProject` when
+   *  different from the current board's project). Shown in the read-only
+   *  banner so the user knows which project owns the item. */
+  readOnlyProjectName?: string;
 }
 
 export function WorkItemModal({
@@ -263,6 +275,8 @@ export function WorkItemModal({
   onClose,
   iterationId,
   boardAssignees,
+  readOnly = false,
+  readOnlyProjectName,
 }: WorkItemModalProps) {
   const projectId = useSettings((s) => s.projectId);
   const teamId = useSettings((s) => s.teamId);
@@ -499,6 +513,7 @@ export function WorkItemModal({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (readOnly) return;
     setError(null);
     const { patches: structuralPatches, error } = buildPatches(
       original,
@@ -590,25 +605,27 @@ export function WorkItemModal({
       }
       footer={
         <>
-          {error && (
+          {error && !readOnly && (
             <div className="mr-auto flex items-center gap-1.5 text-[11px] text-red-300/90">
               <AlertCircle className="h-3.5 w-3.5" />
               <span className="mono truncate max-w-[360px]">{error}</span>
             </div>
           )}
           <Button variant="ghost" size="sm" type="button" onClick={onClose}>
-            Cancel
+            {readOnly ? 'Close' : 'Cancel'}
           </Button>
-          <Button
-            variant="default"
-            size="sm"
-            type="submit"
-            form="workitem-form"
-            disabled={!dirty || save.isPending}
-          >
-            {save.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="default"
+              size="sm"
+              type="submit"
+              form="workitem-form"
+              disabled={!dirty || save.isPending}
+            >
+              {save.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Save
+            </Button>
+          )}
         </>
       }
     >
@@ -618,8 +635,15 @@ export function WorkItemModal({
           onSubmit={handleSubmit}
           className="flex-1 min-w-0 overflow-y-auto px-5 py-4 space-y-4"
         >
+          {readOnly && (
+            <ReadOnlyBanner
+              projectName={readOnlyProjectName}
+              workItemId={task.workItem.id}
+            />
+          )}
           <textarea
-            autoFocus
+            autoFocus={!readOnly}
+            readOnly={readOnly}
             value={draft.title}
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             rows={1}
@@ -627,8 +651,9 @@ export function WorkItemModal({
               'w-full field-sizing-content rounded-md px-3 py-2 resize-none',
               'text-[17px] leading-[1.3] font-medium text-zinc-50',
               'bg-transparent border border-transparent',
-              'hover:bg-white/[0.02] hover:border-white/[0.04]',
-              'focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
+              !readOnly &&
+                'hover:bg-white/[0.02] hover:border-white/[0.04] focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
+              readOnly && 'cursor-default',
               'transition-colors duration-150',
             )}
           />
@@ -646,6 +671,7 @@ export function WorkItemModal({
                 onChange={(html) => setDraft((d) => ({ ...d, description: html }))}
                 uploadFile={uploadFile}
                 placeholder="Add a description…"
+                readOnly={readOnly}
               />
             </Section>
           )}
@@ -663,6 +689,7 @@ export function WorkItemModal({
               draft={layoutDraft}
               onChange={setLayoutField}
               uploadFile={uploadFile}
+              disabled={readOnly}
             />
           ))}
 
@@ -708,7 +735,11 @@ export function WorkItemModal({
             </div>
             <div className="min-h-[80px]">
               {tab === 'comments' && (
-                <CommentsPanel workItemId={task.workItem.id} enabled={open} />
+                <CommentsPanel
+                  workItemId={task.workItem.id}
+                  enabled={open}
+                  readOnly={readOnly}
+                />
               )}
               {tab === 'worklog' && (
                 <WorkLogPanel
@@ -735,6 +766,7 @@ export function WorkItemModal({
               options={stateOptions}
               onChange={(v) => setDraft((d) => ({ ...d, state: v }))}
               clearable={false}
+              disabled={readOnly}
               placeholder={statesFromType.isLoading ? 'Loading…' : '—'}
             />
           </SidebarField>
@@ -743,6 +775,7 @@ export function WorkItemModal({
               value={draft.assignee}
               onChange={(a) => setDraft((d) => ({ ...d, assignee: a }))}
               boardAssignees={boardAssignees}
+              disabled={readOnly}
             />
           </SidebarField>
           <SidebarField label="Created by">
@@ -755,6 +788,7 @@ export function WorkItemModal({
               onChange={(e) =>
                 setDraft((d) => ({ ...d, storyPoints: e.target.value }))
               }
+              disabled={readOnly}
               placeholder="—"
               className="w-24"
             />
@@ -763,18 +797,24 @@ export function WorkItemModal({
             <TagsEditor
               tags={draft.tags}
               onChange={(tags) => setDraft((d) => ({ ...d, tags }))}
+              readOnly={readOnly}
             />
           </SidebarField>
           <SidebarField label="Time tracking">
             <div className="space-y-3">
-              <TimeTracking
-                workItemId={task.workItem.id}
-                projectId={projectId}
-                currentCompleted={
-                  task.workItem.fields['Microsoft.VSTS.Scheduling.CompletedWork'] ?? 0
-                }
-                queryKey={queryKey}
-              />
+              {/* Hide the quick-log form in read-only mode — a disabled form
+                  that silently ignores Enter is worse UX than not rendering
+                  it. Keep the contributors breakdown: it's informative. */}
+              {!readOnly && (
+                <TimeTracking
+                  workItemId={task.workItem.id}
+                  projectId={projectId}
+                  currentCompleted={
+                    task.workItem.fields['Microsoft.VSTS.Scheduling.CompletedWork'] ?? 0
+                  }
+                  queryKey={queryKey}
+                />
+              )}
               <TimeContributors
                 workItemId={task.workItem.id}
                 projectId={projectId}
@@ -803,14 +843,17 @@ export function WorkItemModal({
                           setLayoutField(control.referenceName, v)
                         }
                         uploadFile={uploadFile}
+                        disabled={readOnly}
                         action={
-                          <PinButton
-                            pinned
-                            label={control.displayName}
-                            onToggle={() =>
-                              unpinField(wiType, control.referenceName)
-                            }
-                          />
+                          !readOnly && (
+                            <PinButton
+                              pinned
+                              label={control.displayName}
+                              onToggle={() =>
+                                unpinField(wiType, control.referenceName)
+                              }
+                            />
+                          )
                         }
                       />
                     </div>
@@ -847,15 +890,20 @@ export function WorkItemModal({
                           draft={layoutDraft}
                           onChange={setLayoutField}
                           uploadFile={uploadFile}
-                          renderAction={(control) => (
-                            <PinButton
-                              pinned={false}
-                              label={control.displayName}
-                              onToggle={() =>
-                                pinField(wiType, control.referenceName)
-                              }
-                            />
-                          )}
+                          disabled={readOnly}
+                          renderAction={
+                            readOnly
+                              ? undefined
+                              : (control) => (
+                                  <PinButton
+                                    pinned={false}
+                                    label={control.displayName}
+                                    onToggle={() =>
+                                      pinField(wiType, control.referenceName)
+                                    }
+                                  />
+                                )
+                          }
                         />
                       ))}
                     </div>
@@ -888,6 +936,61 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+/** Sits at the top of the modal form when the opened item lives in a
+ *  different project than the current board. Explains why edits would fail
+ *  and links to the native ADO UI where edits actually work. Uses the item's
+ *  own project name to build the URL — NOT the board's current projectName,
+ *  which is the whole reason the item is read-only in the first place. */
+function ReadOnlyBanner({
+  projectName,
+  workItemId,
+}: {
+  projectName: string | undefined;
+  workItemId: number;
+}) {
+  const org = useSettings((s) => s.org);
+  const url = org && projectName ? workItemUrl(org, projectName, workItemId) : null;
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-md px-3 py-2 text-[12px]',
+        'bg-amber-400/[0.06] border border-amber-400/20 text-amber-100/90',
+        'lit-top',
+      )}
+      role="status"
+    >
+      <Eye className="h-3.5 w-3.5 shrink-0 text-amber-300/80" aria-hidden />
+      <span className="min-w-0 flex-1">
+        Read-only —{' '}
+        {projectName ? (
+          <>
+            this item lives in <span className="text-amber-100 font-medium">{projectName}</span>.
+          </>
+        ) : (
+          'this item lives in another project.'
+        )}{' '}
+        Open it in Azure DevOps to make changes.
+      </span>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            'inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium shrink-0',
+            'bg-white/[0.06] border border-white/[0.08] text-zinc-100',
+            'hover:bg-white/[0.10] hover:border-white/[0.14]',
+            'transition-colors duration-100',
+          )}
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open
+        </a>
+      )}
+    </div>
+  );
+}
+
 /** Read-only companion to the AssigneePicker button — same shape, same avatar, but
  *  no chevron, no popover, and muted enough that it doesn't read as clickable. */
 function CreatedByRow({ identity }: { identity: AdoIdentity | null }) {
@@ -916,6 +1019,7 @@ function LayoutGroup({
   onChange,
   renderAction,
   uploadFile,
+  disabled = false,
 }: {
   group: import('@/ado/form').FormGroup;
   draft: DraftRecord;
@@ -924,6 +1028,8 @@ function LayoutGroup({
    *  `group` container so the action can hover-reveal via `group-hover:*`. */
   renderAction?: (control: FormControl) => React.ReactNode;
   uploadFile?: (file: File) => Promise<UploadedAttachment>;
+  /** When true, every control in the group renders disabled. */
+  disabled?: boolean;
 }) {
   // A group whose label echoes its single control's label is just visual noise —
   // ADO's native form renders those as plain sections without a header. Only show
@@ -949,6 +1055,7 @@ function LayoutGroup({
             onChange={(v) => onChange(control.referenceName, v)}
             action={renderAction?.(control)}
             uploadFile={uploadFile}
+            disabled={disabled}
           />
         </div>
       ))}
@@ -1031,9 +1138,11 @@ function SidebarField({ label, children }: { label: string; children: React.Reac
 function TagsEditor({
   tags,
   onChange,
+  readOnly = false,
 }: {
   tags: string[];
   onChange: (next: string[]) => void;
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState('');
 
@@ -1065,46 +1174,54 @@ function TagsEditor({
       className={cn(
         'flex flex-wrap items-center gap-1 min-h-[32px] rounded-md px-1.5 py-1',
         'bg-white/[0.03] border border-white/[0.08]',
-        'focus-within:border-indigo-400/40 focus-within:ring-2 focus-within:ring-indigo-400/15',
+        !readOnly &&
+          'focus-within:border-indigo-400/40 focus-within:ring-2 focus-within:ring-indigo-400/15',
         'transition-colors duration-150',
       )}
     >
+      {tags.length === 0 && readOnly && (
+        <span className="text-[12px] text-zinc-600 px-1">No tags</span>
+      )}
       {tags.map((tag) => (
         <span
           key={tag}
           className="inline-flex items-center gap-0.5 rounded bg-white/[0.06] pl-2 pr-0.5 py-0.5 text-[11px] text-zinc-200 lit-top"
         >
           {tag}
-          <button
-            type="button"
-            // Prevent the input's onBlur from firing first and swallowing the click
-            // (which it would, since blur re-renders and the button could unmount).
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange(tags.filter((t) => t !== tag));
-            }}
-            aria-label={`Remove tag ${tag}`}
-            className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
-          >
-            <X className="h-3 w-3" />
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              // Prevent the input's onBlur from firing first and swallowing the click
+              // (which it would, since blur re-renders and the button could unmount).
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(tags.filter((t) => t !== tag));
+              }}
+              aria-label={`Remove tag ${tag}`}
+              className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </span>
       ))}
-      <input
-        type="text"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={handleKey}
-        onBlur={() => {
-          if (draft.trim()) {
-            commit(draft);
-            setDraft('');
-          }
-        }}
-        placeholder={tags.length === 0 ? 'Add tag…' : ''}
-        className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-100 placeholder:text-zinc-600 outline-none px-1 py-0.5"
-      />
+      {!readOnly && (
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={handleKey}
+          onBlur={() => {
+            if (draft.trim()) {
+              commit(draft);
+              setDraft('');
+            }
+          }}
+          placeholder={tags.length === 0 ? 'Add tag…' : ''}
+          className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-100 placeholder:text-zinc-600 outline-none px-1 py-0.5"
+        />
+      )}
     </div>
   );
 }

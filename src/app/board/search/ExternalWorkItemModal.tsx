@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import type { AdoIdentity, AdoTaskboardColumn, AdoWorkItem } from '@/ado/types';
 import type { TaskOnBoard } from '@/ado/hooks/useTaskboard';
 import { useWorkItemFull } from '@/ado/hooks/useWorkItemFull';
+import { useSettings } from '@/state/settings.store';
 import { WorkItemModal } from '../WorkItemModal';
 
 /** Wrapper that opens the standard work-item modal for an item that wasn't
@@ -30,6 +31,22 @@ export function ExternalWorkItemModal({
   boardAssignees: AdoIdentity[];
   onClose: () => void;
 }) {
+  const currentProjectName = useSettings((s) => s.projectName);
+  const itemProjectName = (workItem.fields['System.TeamProject'] as string | undefined) ?? '';
+
+  // Cross-project detection. Every write path in WorkItemModal (PATCH fields,
+  // comments, attachments, status change) bakes in the CURRENT project via
+  // `useSettings`, so a save against an item in another project would 404.
+  // Switch to read-only rather than letting the user discover this by
+  // clicking Save and hitting an error. Same-project or missing-project
+  // (defensive) falls through to editable. Case-insensitive compare —
+  // ADO project names are typically exact but settings was entered by the
+  // user and may differ in casing.
+  const readOnly =
+    !!currentProjectName &&
+    !!itemProjectName &&
+    itemProjectName.toLowerCase() !== currentProjectName.toLowerCase();
+
   const synthesized = useMemo<TaskOnBoard>(
     () => ({
       workItem,
@@ -52,6 +69,8 @@ export function ExternalWorkItemModal({
       onClose={onClose}
       iterationId={iterationId ?? ''}
       boardAssignees={boardAssignees}
+      readOnly={readOnly}
+      readOnlyProjectName={readOnly ? itemProjectName : undefined}
     />
   );
 }
