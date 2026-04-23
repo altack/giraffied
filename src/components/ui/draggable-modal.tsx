@@ -154,7 +154,7 @@ export function DraggableModal({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md cursor-pointer text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
         >
           <X className="h-3.5 w-3.5" />
         </button>

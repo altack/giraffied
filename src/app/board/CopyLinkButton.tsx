@@ -48,7 +48,7 @@ export function CopyLinkButton({
       title={copied ? 'Copied!' : 'Copy link'}
       aria-label={copied ? 'Copied link to clipboard' : 'Copy link to work item'}
       className={cn(
-        'inline-flex h-5 w-5 items-center justify-center rounded',
+        'inline-flex h-5 w-5 items-center justify-center rounded cursor-pointer',
         'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08]',
         'transition-colors duration-100',
         className,

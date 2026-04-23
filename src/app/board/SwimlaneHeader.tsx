@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type MouseEvent, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { AdoWorkItem } from '@/ado/types';
 import { cn } from '@/lib/cn';
@@ -7,6 +7,7 @@ import { CopyLinkButton } from './CopyLinkButton';
 import { CreateTaskButton } from './CreateTaskButton';
 import { OpenLinkButton } from './OpenLinkButton';
 import { Avatar } from './Avatar';
+import { isSelectingTextIn } from './selection';
 
 function BannerShell({
   collapsed,
@@ -21,9 +22,16 @@ function BannerShell({
   // work item is reserved for the title button in SwimlaneBanner (which stops
   // propagation). Keyboard flow: tab to the chevron (toggle) → tab to the title
   // button (open modal) → tab to the copy-link button.
+  // A text selection that spans out of the title (mousedown on title, mouseup
+  // elsewhere in the banner) fires a click here rather than on the title — so
+  // guard against the selection-as-click case before collapsing.
+  const handleShellClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (isSelectingTextIn(e.currentTarget)) return;
+    onToggle();
+  };
   return (
     <div
-      onClick={onToggle}
+      onClick={handleShellClick}
       className={cn(
         'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left cursor-pointer',
         'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
@@ -90,25 +98,44 @@ export function SwimlaneBanner({
       />
       <span className="text-zinc-400 shrink-0">{type.label}</span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
-      <button
-        type="button"
+      {/* Span (not button) so the title text is user-selectable — buttons ship
+       * with `user-select: none` in several UAs. A click that's actually a text
+       * selection is passed through to the shell handler, which also ignores it. */}
+      <span
+        role={onOpen ? 'button' : undefined}
+        tabIndex={onOpen ? 0 : undefined}
         onClick={
           onOpen
             ? (e) => {
+                if (isSelectingTextIn(e.currentTarget)) return;
                 e.stopPropagation();
                 onOpen();
               }
             : undefined
         }
+        onKeyDown={
+          onOpen
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpen();
+                }
+              }
+            : undefined
+        }
         className={cn(
-          'min-w-0 truncate bg-transparent border-0 p-0 m-0 text-left',
+          'min-w-0 truncate text-left select-text',
+          // Safe zone around the text so a click that lands a few px off the
+          // glyphs still initiates a text selection instead of bubbling to the
+          // banner toggle. Negative margin cancels the padding in flex layout.
+          'px-1 -mx-1',
           'text-zinc-100 font-medium',
           onOpen && 'cursor-pointer hover:underline underline-offset-2 decoration-white/30',
           'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
         )}
       >
         {f['System.Title']}
-      </button>
+      </span>
       <span className="mono text-[11px] text-zinc-600 shrink-0">· {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} </span>
       {tags.length > 0 && (
         <div className="flex items-center gap-1 shrink-0">

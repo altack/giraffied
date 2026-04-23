@@ -485,7 +485,16 @@ export function WorkItemModal({
       heightVh={88}
       fixedHeight
       title={
-        <span className="flex items-center gap-1.5 min-w-0">
+        // data-no-drag: the header's pointer-down handler looks for this on any
+        // ancestor of the click target and skips drag — so the title glyphs and
+        // the gaps between them don't hijack what should be a text selection.
+        // select-text overrides the header's `select-none`. px-1 -mx-1 is a 4px
+        // safe zone on each side so a click just off the glyphs still counts
+        // as "inside the title" instead of bubbling to the drag handler.
+        <span
+          data-no-drag
+          className="inline-flex items-center gap-1.5 select-text cursor-text px-1 -mx-1"
+        >
           <span
             className="h-1.5 w-1.5 rounded-full shrink-0"
             style={{ backgroundColor: type.dot }}

@@ -5,7 +5,7 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react';
-import { AlertCircle, Loader2, Plus } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DraggableModal } from '@/components/ui/draggable-modal';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,7 @@ import { useSettings } from '@/state/settings.store';
 import { AssigneePicker } from './AssigneePicker';
 import { DescriptionEditor } from './DescriptionEditor';
 import { ParentPicker } from './ParentPicker';
+import { workItemTypeStyle } from './workItemVisuals';
 
 interface Draft {
   parentId: number | null;
@@ -181,8 +182,15 @@ export function CreateTaskDialog({
       width={520}
       heightVh={80}
       title={
-        <span className="flex items-center gap-1.5 min-w-0">
-          <Plus className="h-3.5 w-3.5 text-zinc-500 shrink-0" aria-hidden />
+        <span
+          data-no-drag
+          className="inline-flex items-center gap-1.5 select-text cursor-text px-1 -mx-1"
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: workItemTypeStyle('Task').dot }}
+            aria-hidden
+          />
           <span className="text-zinc-300">New task</span>
         </span>
       }
