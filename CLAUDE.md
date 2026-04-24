@@ -94,7 +94,7 @@ src/
 ## Git conventions
 
 - `feat|fix|style|chore|perf: short summary` + body paragraph + `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
-- Branch: `master`. Never force-push. Never skip hooks (`--no-verify`) or bypass signing unless explicitly asked.
+- Branch: `main`. Never force-push. Never skip hooks (`--no-verify`) or bypass signing unless explicitly asked.
 - `.claude/settings.local.json` is gitignored.
 
 ## Out of scope for v1

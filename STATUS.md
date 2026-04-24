@@ -215,7 +215,7 @@ Hairline dividers (`border-white/[0.06]` full-width via `-mx-4`) separate the zo
 ## Conventions
 
 - Commits: `feat|fix|style|chore|perf: short summary` + body paragraph + Co-Authored-By.
-- Branch: `master`. Don't force-push. Don't skip hooks / bypass signing.
+- Branch: `main`. Don't force-push. Don't skip hooks / bypass signing.
 - `.claude/settings.local.json` is gitignored.
 - After each build, close the old Giraffied tab and open a fresh one — old tabs run stale bundles.
 
