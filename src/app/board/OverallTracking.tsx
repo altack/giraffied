@@ -13,9 +13,10 @@ import type { TaskboardData } from '@/ado/hooks/useTaskboard';
 import type { AdoIdentity, AdoWorkItem } from '@/ado/types';
 import { listWorkItemUpdates } from '@/ado/endpoints';
 import { useSettings } from '@/state/settings.store';
+import { useTheme } from '@/state/theme.store';
 import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
-import { avatarColor } from './workItemVisuals';
+import { contributorBarColor } from './workItemVisuals';
 import { formatHours, formatHoursHuman } from './timeFormat';
 
 const POPOVER_WIDTH = 340;
@@ -56,6 +57,7 @@ function round(n: number): number {
  *  first warms this view for free; and once fetched they stay fresh for 60s. */
 export function OverallTracking({ board }: { board: TaskboardData | undefined }) {
   const projectId = useSettings((s) => s.projectId);
+  const theme = useTheme((s) => s.theme);
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -139,7 +141,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
         identity: v.identity,
         total: v.total,
         pct: grand > 0 ? (v.total / grand) * 100 : 0,
-        color: avatarColor(v.identity?.displayName ?? 'Unknown').bg,
+        color: contributorBarColor(v.identity?.displayName ?? 'Unknown', theme),
       }))
       .sort((a, b) => b.total - a.total);
     return { contributors: list, totalFromUpdates: grand };
@@ -148,7 +150,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
     // per render, the iteration yields the same values until a query settles.
     // The memo recomputes on each render but the work is O(updates) and cheap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.map((r) => r.dataUpdatedAt).join(',')]);
+  }, [results.map((r) => r.dataUpdatedAt).join(','), theme]);
 
   function toggle() {
     if (!open && btnRef.current) {

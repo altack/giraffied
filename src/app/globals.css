@@ -67,6 +67,14 @@
   /* — Modal backdrop dim — */
   --color-modal-backdrop: rgb(0 0 0 / 0.25);
 
+  /* — Default lane hue —
+   * RGB triplet (no commas) used as the fallback `--lane-hue` for swimlanes
+   * whose work-item type doesn't have an assigned hue (the "Everything else"
+   * lane and any custom WIT). Consumed via `rgb(var(--lane-hue) / 0.045)`
+   * gradients in the column cells; needs to produce a visible bleed against
+   * the current canvas, so it flips dark↔light per theme. */
+  --lane-hue-default: 255 255 255;
+
   /* — Scrollbar thumb — */
   --color-scrollbar-thumb: rgb(255 255 255 / 0.08);
   --color-scrollbar-thumb-hover: rgb(255 255 255 / 0.14);
@@ -90,12 +98,13 @@
   --color-surface-1: #1c1d22;
   --color-surface-2: #22232a;
   --color-surface-3: #2b2c34;
-  /* Pulled back from #d2d3d9 — task titles read as too bright against this
-   * canvas. The whole point of the soft-dark theme is the ink and the
-   * surface meet closer to the middle. */
-  --color-ink: #b8b9c0;
-  --color-ink-muted: #828390;
-  --color-ink-dim: #595a64;
+  /* Soft-dark intentionally meets ink and surface in the middle — primary
+   * text sits well below classic's near-white #e6e6ea so titles, modal body,
+   * and sidebar copy read as calm, not pearled. Tuned by feel after a couple
+   * of passes; brighter than this and the rows start to glare. */
+  --color-ink: #a4a5ad;
+  --color-ink-muted: #767783;
+  --color-ink-dim: #565762;
 
   --color-hairline: rgb(255 255 255 / 0.05);
   --color-hairline-strong: rgb(255 255 255 / 0.09);
@@ -118,6 +127,10 @@
   --color-shimmer-peak: rgb(255 255 255 / 0.055);
 
   --color-modal-backdrop: rgb(0 0 0 / 0.30);
+
+  /* Soft-dark canvas reads the white default as a faint warm bleed; same
+   * triplet as classic since both have a dark canvas. */
+  --lane-hue-default: 255 255 255;
 }
 
 /* — Light — White canvas + dark ink + DARK overlays.
@@ -166,6 +179,11 @@
    * slate. A tiny wash plus a hint of indigo cool is plenty to anchor the
    * modal without flattening the canvas behind it. */
   --color-modal-backdrop: rgb(15 16 20 / 0.10);
+
+  /* White-on-white is invisible — flip the default lane hue to a slate
+   * triplet so unparented and custom-typed lanes still get a perceptible
+   * bleed against the white canvas. */
+  --lane-hue-default: 30 41 59;
 }
 
 html,

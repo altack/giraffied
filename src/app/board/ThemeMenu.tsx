@@ -172,7 +172,6 @@ function ThemeRow({
         'hover:bg-[var(--color-overlay-1)]',
       )}
     >
-      <ThemeSwatch id={theme.id} />
       <span className="flex-1 min-w-0">
         <span className="block leading-tight">{theme.label}</span>
         <span className="block text-[10.5px] leading-tight text-[var(--color-ink-dim)] truncate">
@@ -181,29 +180,5 @@ function ThemeRow({
       </span>
       {active && <Check className="h-3.5 w-3.5 text-emerald-400/80 shrink-0" />}
     </button>
-  );
-}
-
-/** Tiny canvas/ink preview chip for each theme. Hardcoded literals — these
- *  are *previews* of what each theme renders as, so they shouldn't reuse the
- *  theme tokens (which would all show the current theme). */
-function ThemeSwatch({ id }: { id: Theme }) {
-  const fills: Record<Theme, { bg: string; line: string; ring: string }> = {
-    classic: { bg: '#08080a', line: '#e6e6ea', ring: 'rgb(255 255 255 / 0.14)' },
-    dark:    { bg: '#1c1d22', line: '#b8b9c0', ring: 'rgb(255 255 255 / 0.10)' },
-    light:   { bg: '#ffffff', line: '#0f1014', ring: 'rgb(15 16 20 / 0.16)' },
-  };
-  const f = fills[id];
-  return (
-    <span
-      aria-hidden
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md"
-      style={{ background: f.bg, boxShadow: `inset 0 0 0 1px ${f.ring}` }}
-    >
-      <span
-        className="block h-[2px] w-2.5 rounded-full"
-        style={{ background: f.line, opacity: 0.9 }}
-      />
-    </span>
   );
 }

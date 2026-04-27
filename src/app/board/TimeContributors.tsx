@@ -3,9 +3,10 @@ import { Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { listWorkItemUpdates } from '@/ado/endpoints';
 import type { AdoIdentity } from '@/ado/types';
+import { useTheme } from '@/state/theme.store';
 import { Avatar } from './Avatar';
 import { formatHours } from './timeFormat';
-import { avatarColor } from './workItemVisuals';
+import { contributorBarColor } from './workItemVisuals';
 
 interface Contributor {
   key: string;
@@ -50,6 +51,7 @@ export function TimeContributors({
   projectId: string | null;
   enabled: boolean;
 }) {
+  const theme = useTheme((s) => s.theme);
   const q = useQuery({
     queryKey: ['workitem-updates', projectId, workItemId],
     queryFn: () => listWorkItemUpdates(projectId!, workItemId),
@@ -80,15 +82,15 @@ export function TimeContributors({
         identity: v.identity,
         total: v.total,
         pct: grand > 0 ? (v.total / grand) * 100 : 0,
-        color: avatarColor(v.identity?.displayName ?? 'Unknown').bg,
+        color: contributorBarColor(v.identity?.displayName ?? 'Unknown', theme),
       }))
       .sort((a, b) => b.total - a.total);
     return { contributors: list, grandTotal: grand };
-  }, [q.data]);
+  }, [q.data, theme]);
 
   if (q.isLoading) {
     return (
-      <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+      <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-ink-dim)]">
         <Loader2 className="h-3 w-3 animate-spin" /> Loading contributors…
       </div>
     );
@@ -101,16 +103,16 @@ export function TimeContributors({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
           Contributors
         </div>
-        <div className="mono text-[11px] text-zinc-400">
+        <div className="mono text-[11px] text-[var(--color-ink-muted)]">
           {formatHours(grandTotal)} total
         </div>
       </div>
 
       <div
-        className="flex h-1.5 w-full overflow-hidden rounded-full bg-white/[0.04]"
+        className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-overlay-1)]"
         role="img"
         aria-label={`Time split across ${contributors.length} contributor${contributors.length === 1 ? '' : 's'}`}
       >

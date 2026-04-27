@@ -17,10 +17,43 @@ const AVATAR_PALETTE: Array<{ bg: string; fg: string }> = [
   { bg: '#6b3b55', fg: '#fbcfe8' },
 ];
 
-export function avatarColor(str: string): { bg: string; fg: string } {
+/** Bar-segment color slots for the contributor stacked bar. Slot order mirrors
+ *  AVATAR_PALETTE so the same person gets the same hue family across themes —
+ *  the dark slate-blue avatar maps to the indigo bar segment, violet → violet,
+ *  rose → rose, etc. The dark palette is intentionally muted (low saturation)
+ *  to read as calm against the dark canvas; the light palette is the saturated
+ *  500-tier so the bars actually pop on white instead of looking dusted-out. */
+const CONTRIBUTOR_BAR_PALETTE_DARK: string[] = [
+  '#3b4a6b', '#4c3b6b', '#6b3b4a', '#3b6b5a',
+  '#6b5a3b', '#3b556b', '#5a3b6b', '#6b3b55',
+];
+const CONTRIBUTOR_BAR_PALETTE_LIGHT: string[] = [
+  '#6366f1', // indigo-500
+  '#8b5cf6', // violet-500
+  '#f43f5e', // rose-500
+  '#10b981', // emerald-500
+  '#f59e0b', // amber-500
+  '#0ea5e9', // sky-500
+  '#a855f7', // purple-500
+  '#ec4899', // pink-500
+];
+
+function paletteIndex(str: string): number {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+  return Math.abs(h) % AVATAR_PALETTE.length;
+}
+
+export function avatarColor(str: string): { bg: string; fg: string } {
+  return AVATAR_PALETTE[paletteIndex(str)];
+}
+
+/** Pick a contributor-bar segment color for the given name + theme. Light mode
+ *  needs vivid saturated tones; dark/classic stay on the muted palette that
+ *  matches the avatar circles. */
+export function contributorBarColor(str: string, theme: 'classic' | 'dark' | 'light'): string {
+  const palette = theme === 'light' ? CONTRIBUTOR_BAR_PALETTE_LIGHT : CONTRIBUTOR_BAR_PALETTE_DARK;
+  return palette[paletteIndex(str)];
 }
 
 /** Type indicator is now a single colored dot + the short label. Matches Linear's style. */
@@ -76,7 +109,11 @@ export function laneHueRgb(type: string | undefined): string {
     case 'Sprint Goal':
       return '52 211 153';
     default:
-      return '255 255 255';
+      // The fallback triplet flips per theme via --lane-hue-default in
+      // globals.css. CSS resolves the nested var() at use time, so the
+      // downstream `rgb(var(--lane-hue) / 0.045)` ends up with the right
+      // tone for the current theme — visible on both dark and light canvases.
+      return 'var(--lane-hue-default)';
   }
 }
 
