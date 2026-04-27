@@ -180,11 +180,13 @@ export function SearchOverlay({
       {/* Dim the board just enough to keep attention on the panel, but NOT
           blurred — the user explicitly wanted the board to stay crisp and
           the atmospheric effect to live in the panel + light casts. Fades
-          in/out in lockstep with the panel morph. */}
+          in/out in lockstep with the panel morph. pointer-events-none so
+          mousedowns fall through to the wrapper above and trigger the
+          outside-click dismiss. */}
       <div
         aria-hidden
         className={cn(
-          'absolute inset-0 bg-black/35',
+          'absolute inset-0 bg-black/35 pointer-events-none',
           exiting ? 'jfd-backdrop-out' : 'jfd-backdrop-in',
         )}
       />

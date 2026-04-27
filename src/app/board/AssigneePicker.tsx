@@ -14,7 +14,7 @@ import type { AdoIdentity } from '@/ado/types';
 import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
 
-const POPOVER_WIDTH = 288;
+const POPOVER_MIN_WIDTH = 240;
 const POPOVER_MAX_HEIGHT = 320;
 
 const identityKey = (i: AdoIdentity) => i.uniqueName ?? i.id ?? i.displayName;
@@ -119,6 +119,10 @@ export function AssigneePicker({
     setOpen((o) => !o);
   }
 
+  // Popover aligns to the trigger's left edge and matches its width — same
+  // pattern as ParentPicker, so the dropdown reads as a continuation of the
+  // input. Falls back to a minimum width when the trigger is narrower than
+  // the search row needs to be usable.
   const placement = rect
     ? (() => {
         const spaceBelow = window.innerHeight - rect.bottom;
@@ -126,16 +130,11 @@ export function AssigneePicker({
         const top = flipUp
           ? Math.max(8, rect.top - POPOVER_MAX_HEIGHT - 4)
           : rect.bottom + 4;
-        const rightAligned = rect.right - POPOVER_WIDTH;
-        const left = Math.max(8, Math.min(rightAligned, window.innerWidth - POPOVER_WIDTH - 8));
-        // Pivot the enter animation toward the trigger edge so the popover
-        // reads as "growing out of" the button rather than dropping in.
-        const alignedRight = left + POPOVER_WIDTH >= rect.right - 4;
-        const origin = flipUp
-          ? alignedRight ? 'from-bottom-right' : 'from-bottom-left'
-          : alignedRight ? 'from-top-right' : 'from-top-left';
+        const width = Math.max(rect.width, POPOVER_MIN_WIDTH);
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+        const origin = flipUp ? 'from-bottom-left' : 'from-top-left';
         return {
-          style: { position: 'fixed', top, left, width: POPOVER_WIDTH } as React.CSSProperties,
+          style: { position: 'fixed', top, left, width } as React.CSSProperties,
           origin,
         };
       })()

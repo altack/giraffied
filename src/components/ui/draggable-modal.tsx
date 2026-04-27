@@ -17,7 +17,12 @@ interface Position {
 
 interface DraggableModalProps {
   open: boolean;
+  /** Hard close — used by the parent's Cancel button. Always closes, no prompt. */
   onClose: () => void;
+  /** Soft close — fired by the X button in the header and by Esc. The parent
+   *  can intercept this to prompt about unsaved changes before calling
+   *  `onClose`. Defaults to `onClose` when omitted. */
+  onCloseRequest?: () => void;
   title: ReactNode;
   /** Optional: right-side slot in the header for secondary actions (before close). */
   headerActions?: ReactNode;
@@ -36,6 +41,7 @@ const EDGE_MARGIN = 8;
 export function DraggableModal({
   open,
   onClose,
+  onCloseRequest,
   title,
   headerActions,
   footer,
@@ -44,6 +50,7 @@ export function DraggableModal({
   fixedHeight = false,
   children,
 }: DraggableModalProps) {
+  const requestClose = onCloseRequest ?? onClose;
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const dragOffset = useRef<Position | null>(null);
@@ -81,15 +88,16 @@ export function DraggableModal({
     });
   }, [open, width]);
 
-  // Esc to close.
+  // Esc to close — routes through requestClose so the parent can prompt about
+  // unsaved changes before letting the modal go away.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') requestClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
   // Keep panel within the viewport on window resize.
   useEffect(() => {
@@ -146,23 +154,24 @@ export function DraggableModal({
 
   return createPortal(
     <>
-      {/* Subtle dim-backdrop so the modal feels anchored to the board. Kept
-       * pointer-events-none on purpose: this dialog is aria-modal="false" and
-       * draggable, meaning the user can interact with the board behind it.
-       * Capturing pointer events here would break that contract. */}
+      {/* Backdrop blocks all interactions with the board behind the modal,
+       * but does NOT dismiss on click — the user has to commit to Cancel /
+       * Save / X to close. The panel above is still draggable via its title
+       * bar; only the canvas behind is locked. */}
       <div
         aria-hidden
+        onMouseDown={(e) => e.preventDefault()}
         className={cn(
           // Theme-aware dim — light mode flips to a much softer wash so the
           // modal is anchored to the board without smudging the canvas behind it.
-          'fixed inset-0 z-40 pointer-events-none bg-[var(--color-modal-backdrop)]',
+          'fixed inset-0 z-40 bg-[var(--color-modal-backdrop)]',
           exiting ? 'jfd-backdrop-out' : 'jfd-backdrop-in',
         )}
       />
       <div
         ref={panelRef}
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         className={cn(
           'fixed z-50 flex flex-col',
           'rounded-xl border border-[var(--color-hairline-strong)]',
@@ -190,7 +199,7 @@ export function DraggableModal({
         {headerActions}
         <button
           type="button"
-          onClick={onClose}
+          onClick={requestClose}
           aria-label="Close"
           className="inline-flex h-6 w-6 items-center justify-center rounded-md cursor-pointer text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)] transition-colors"
         >

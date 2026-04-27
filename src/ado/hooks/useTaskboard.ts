@@ -40,18 +40,6 @@ function log(...args: unknown[]): void {
   console.debug('[giraffied]', ...args);
 }
 
-/** Sort swimlane rows by work-item type alphabetically, with Bug always pinned
- *  to the very bottom regardless of letter. Within the same type, JS's stable
- *  sort preserves ADO's returned order (StackRank / backlog order). */
-function compareRows(a: AdoWorkItem, b: AdoWorkItem): number {
-  const ta = a.fields['System.WorkItemType'];
-  const tb = b.fields['System.WorkItemType'];
-  if (ta === tb) return 0;
-  if (ta === 'Bug') return 1;
-  if (tb === 'Bug') return -1;
-  return ta.localeCompare(tb, undefined, { sensitivity: 'base' });
-}
-
 /** Server-side check that fires when a team has never saved taskboard-column config,
  *  and sometimes fires spuriously even for teams whose native UI clearly has columns. */
 function isColumnsNotCustomizedError(e: unknown): boolean {
@@ -264,32 +252,39 @@ async function loadTaskboard(
   const cardsById = new Map<number, AdoTaskboardWorkItem>();
   for (const t of taskboardItems) cardsById.set(t.workItemId, t);
 
+  // Build rowIdSet in ADO's returned order. relationsData.workItemRelations is
+  // already StackRank-ordered, so first-seen-wins via Set insertion gives us
+  // the row order ADO would render. A row is either:
+  //   • a parent of any card (appears as `source` of a child relation), or
+  //   • a top-level sprint item with no child cards (a `source: null` relation
+  //     whose target isn't itself a card — e.g. a Bug with no Tasks).
   const rowIdSet = new Set<number>();
+  for (const r of relationsData.workItemRelations) {
+    if (r.source == null) {
+      const rootId = r.target.id;
+      if (typeof rootId !== 'number' || !Number.isFinite(rootId)) continue;
+      if (cardsById.has(rootId)) continue;
+      if (!byId.has(rootId)) continue;
+      rowIdSet.add(rootId);
+    } else {
+      const parentId = r.source.id;
+      if (typeof parentId !== 'number' || !Number.isFinite(parentId)) continue;
+      if (!byId.has(parentId)) continue;
+      rowIdSet.add(parentId);
+    }
+  }
+
   const unparentedIds: number[] = [];
   for (const card of taskboardItems) {
     const parentId = parentOf.get(card.workItemId);
-    if (parentId != null && byId.has(parentId)) rowIdSet.add(parentId);
-    else unparentedIds.push(card.workItemId);
-  }
-
-  // Also include root items (Stories/Bugs/Features) that are in the sprint
-  // but have no child cards yet. Without this pass, a freshly-added Bug with
-  // no Tasks is invisible because nothing references it as a parent. Root
-  // items that *are* cards (team uses "Bugs as tasks" config) live in
-  // `cardsById` and are already handled via the unparented path above.
-  for (const r of relationsData.workItemRelations) {
-    if (r.source != null) continue;
-    const rootId = r.target.id;
-    if (typeof rootId !== 'number' || !Number.isFinite(rootId)) continue;
-    if (cardsById.has(rootId)) continue;
-    if (!byId.has(rootId)) continue;
-    rowIdSet.add(rootId);
+    if (parentId == null || !byId.has(parentId)) {
+      unparentedIds.push(card.workItemId);
+    }
   }
 
   const rowWorkItems = [...rowIdSet]
     .map((id) => byId.get(id))
-    .filter((x): x is AdoWorkItem => x != null)
-    .sort(compareRows);
+    .filter((x): x is AdoWorkItem => x != null);
 
   const toTask = (id: number): TaskOnBoard | null => {
     const tb = cardsById.get(id);

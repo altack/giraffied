@@ -212,10 +212,31 @@ export function CreateTaskDialog({
 
   const canSave = draft.title.trim().length > 0 && !create.isPending;
 
+  // Dirty = the user has touched anything that would be lost on close. We use
+  // the current draft vs. the just-opened-blank baseline (defaultParentId,
+  // null assignee, empty title/description). The Cancel button bypasses this;
+  // only Esc / X go through requestClose.
+  const dirty =
+    draft.title.trim().length > 0 ||
+    draft.description.trim().length > 0 ||
+    draft.parentId !== defaultParentId ||
+    draft.assignee !== null;
+
+  const requestClose = useCallback(() => {
+    if (
+      dirty &&
+      !window.confirm('You have unsaved changes. Discard them?')
+    ) {
+      return;
+    }
+    onClose();
+  }, [dirty, onClose]);
+
   return (
     <DraggableModal
       open={open}
       onClose={onClose}
+      onCloseRequest={requestClose}
       width={520}
       heightVh={80}
       title={

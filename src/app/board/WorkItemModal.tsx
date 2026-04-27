@@ -575,10 +575,25 @@ export function WorkItemModal({
   // Preload comments count for the tab badge (enabled only while modal is open).
   const comments = useComments(task.workItem.id, open && tab === 'comments');
 
+  // Esc / X go through requestClose so we can ask before tossing edits. The
+  // Cancel button still calls onClose directly — discard is the user's choice
+  // there. Read-only mode skips the prompt: there's nothing to lose.
+  const requestClose = useCallback(() => {
+    if (
+      !readOnly &&
+      dirty &&
+      !window.confirm('You have unsaved changes. Discard them?')
+    ) {
+      return;
+    }
+    onClose();
+  }, [readOnly, dirty, onClose]);
+
   return (
     <DraggableModal
       open={open}
       onClose={onClose}
+      onCloseRequest={requestClose}
       width={980}
       heightVh={88}
       fixedHeight
