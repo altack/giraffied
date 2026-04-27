@@ -132,8 +132,8 @@ export function ParentPicker({
         onClick={toggle}
         className={cn(
           'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px] text-left',
-          'bg-white/[0.03] border border-white/[0.08] text-zinc-100',
-          'hover:bg-white/[0.05]',
+          'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)] text-[var(--color-ink)]',
+          'hover:bg-[var(--color-overlay-1)]',
           'focus-visible:outline-none focus-visible:border-indigo-400/40 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
           'transition-colors duration-150',
         )}
@@ -141,12 +141,12 @@ export function ParentPicker({
         {selected ? (
           <ParentRowLabel lane={selected} />
         ) : (
-          <span className="flex items-center gap-2 text-zinc-400 flex-1">
-            <Slash className="h-3.5 w-3.5 text-zinc-600" />
+          <span className="flex items-center gap-2 text-[var(--color-ink-muted)] flex-1">
+            <Slash className="h-3.5 w-3.5 text-[var(--color-ink-dim)]" />
             No parent (Everything else)
           </span>
         )}
-        <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+        <ChevronDown className="h-3.5 w-3.5 text-[var(--color-ink-muted)] shrink-0" />
       </button>
       {open &&
         placement &&
@@ -160,7 +160,7 @@ export function ParentPicker({
               placement.origin,
             )}
           >
-            <div className="p-1.5 border-b border-white/[0.06]">
+            <div className="p-1.5 border-b border-[var(--color-hairline)]">
               <Input
                 autoFocus
                 value={filter}
@@ -174,11 +174,11 @@ export function ParentPicker({
                 type="button"
                 onClick={() => pick(null)}
                 className={cn(
-                  'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-400 hover:bg-white/[0.04]',
-                  value === null && 'bg-white/[0.03] text-zinc-100',
+                  'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink-muted)] hover:bg-[var(--color-overlay-1)]',
+                  value === null && 'bg-[var(--color-overlay-soft)] text-[var(--color-ink)]',
                 )}
               >
-                <Slash className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                <Slash className="h-3.5 w-3.5 text-[var(--color-ink-dim)] shrink-0" />
                 No parent (Everything else)
               </button>
               {results.map((lane) => {
@@ -189,8 +189,8 @@ export function ParentPicker({
                     type="button"
                     onClick={() => pick(lane.row.id)}
                     className={cn(
-                      'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-200 hover:bg-white/[0.04] text-left',
-                      isSelected && 'bg-white/[0.03]',
+                      'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)] text-left',
+                      isSelected && 'bg-[var(--color-overlay-soft)]',
                     )}
                   >
                     <ParentRowLabel lane={lane} />
@@ -198,7 +198,7 @@ export function ParentPicker({
                 );
               })}
               {results.length === 0 && (
-                <div className="px-2.5 py-2 text-[12px] text-zinc-600">
+                <div className="px-2.5 py-2 text-[12px] text-[var(--color-ink-dim)]">
                   No matches.
                 </div>
               )}
@@ -220,9 +220,9 @@ function ParentRowLabel({ lane }: { lane: Swimlane }) {
         style={{ backgroundColor: type.dot }}
         aria-hidden
       />
-      <span className="text-zinc-400 shrink-0">{type.label}</span>
-      <span className="mono text-[11px] text-zinc-600 shrink-0">#{lane.row.id}</span>
-      <span className="text-zinc-100 truncate">{f['System.Title']}</span>
+      <span className="text-[var(--color-ink-muted)] shrink-0">{type.label}</span>
+      <span className="mono text-[11px] text-[var(--color-ink-dim)] shrink-0">#{lane.row.id}</span>
+      <span className="text-[var(--color-ink)] truncate">{f['System.Title']}</span>
     </span>
   );
 }

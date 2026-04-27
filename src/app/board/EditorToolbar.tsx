@@ -46,11 +46,11 @@ function ToolButton({
         if (!disabled) onPress();
       }}
       className={cn(
-        'inline-grid place-items-center w-7 h-7 rounded text-zinc-300',
-        'hover:bg-white/[0.06] hover:text-zinc-100',
+        'inline-grid place-items-center w-7 h-7 rounded text-[var(--color-ink-muted)]',
+        'hover:bg-[var(--color-overlay-1)] hover:text-[var(--color-ink)]',
         'disabled:opacity-30 disabled:cursor-not-allowed',
         'transition-colors duration-100',
-        active && 'bg-white/[0.10] text-zinc-50',
+        active && 'bg-[var(--color-overlay-strong)] text-[var(--color-ink)]',
       )}
     >
       {children}
@@ -59,7 +59,7 @@ function ToolButton({
 }
 
 function ToolDivider() {
-  return <span aria-hidden className="self-stretch w-px bg-white/[0.06] mx-0.5" />;
+  return <span aria-hidden className="self-stretch w-px bg-[var(--color-hairline)] mx-0.5" />;
 }
 
 export function EditorToolbar({
@@ -96,7 +96,7 @@ export function EditorToolbar({
 
   return (
     <div
-      className="jfd-tt-toolbar flex items-center gap-0.5 px-1.5 py-1 border-b border-white/[0.06] bg-white/[0.02]"
+      className="jfd-tt-toolbar flex items-center gap-0.5 px-1.5 py-1 border-b border-[var(--color-hairline)] bg-[var(--color-overlay-soft)]"
       // Keep mousedown on the strip itself from blurring the editor.
       onMouseDown={(e) => e.preventDefault()}
     >
@@ -194,7 +194,7 @@ export function EditorToolbar({
       )}
 
       {pendingUploads > 0 && (
-        <div className="ml-auto flex items-center gap-1.5 pr-1 text-[11px] text-zinc-400 mono">
+        <div className="ml-auto flex items-center gap-1.5 pr-1 text-[11px] text-[var(--color-ink-muted)] mono">
           <Loader2 size={11} className="animate-spin" />
           <span>
             Uploading {pendingUploads} file{pendingUploads === 1 ? '' : 's'}…

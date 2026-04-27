@@ -84,16 +84,23 @@ export function laneHueRgb(type: string | undefined): string {
  *  by case-insensitive state name so "Done" / "DONE" / "done" all match. Falls
  *  back to a neutral white tint for custom or unknown states — better to show
  *  "QA Verified" in neutral than not at all. */
+/**
+ * Tonal chip styling for a work-item state. The dark-mode classes are the
+ * canonical palette (low-alpha tinted background + high-saturation text).
+ * Light mode uses `theme-light:*` overrides because a `text-emerald-300` over
+ * a `bg-emerald-400/[0.10]` over white is illegible — light mode wants a
+ * deeper text shade against a slightly heavier background tint.
+ */
 export function stateChipTone(state: string): string {
   const s = state.trim().toLowerCase();
   if (s === 'done' || s === 'closed' || s === 'completed') {
-    return 'bg-emerald-400/[0.10] border-emerald-400/25 text-emerald-300';
+    return 'bg-emerald-400/[0.10] border-emerald-400/25 text-emerald-300 theme-light:bg-emerald-100 theme-light:border-emerald-700/30 theme-light:text-emerald-800';
   }
   if (s === 'resolved' || s === 'in review') {
-    return 'bg-violet-400/[0.10] border-violet-400/25 text-violet-300';
+    return 'bg-violet-400/[0.10] border-violet-400/25 text-violet-300 theme-light:bg-violet-100 theme-light:border-violet-700/30 theme-light:text-violet-800';
   }
   if (s === 'active' || s === 'in progress' || s === 'doing' || s === 'committed') {
-    return 'bg-sky-400/[0.10] border-sky-400/25 text-sky-300';
+    return 'bg-sky-400/[0.10] border-sky-400/25 text-sky-300 theme-light:bg-sky-100 theme-light:border-sky-700/30 theme-light:text-sky-800';
   }
   if (
     s === 'new' ||
@@ -102,16 +109,16 @@ export function stateChipTone(state: string): string {
     s === 'in planning' ||
     s === 'open tasks'
   ) {
-    return 'bg-amber-400/[0.10] border-amber-400/25 text-amber-200';
+    return 'bg-amber-400/[0.10] border-amber-400/25 text-amber-200 theme-light:bg-amber-100 theme-light:border-amber-700/30 theme-light:text-amber-800';
   }
   if (s === 'blocked' || s === 'on hold' || s === 'rejected' || s === 'cancelled') {
-    return 'bg-rose-400/[0.10] border-rose-400/25 text-rose-300';
+    return 'bg-rose-400/[0.10] border-rose-400/25 text-rose-300 theme-light:bg-rose-100 theme-light:border-rose-700/30 theme-light:text-rose-800';
   }
   if (s === 'removed') {
-    return 'bg-white/[0.02] border-white/[0.06] text-zinc-600';
+    return 'bg-[var(--color-overlay-soft)] border-[var(--color-hairline)] text-[var(--color-ink-dim)]';
   }
   // to do, proposed, opened, anything custom
-  return 'bg-white/[0.05] border-white/[0.10] text-zinc-300';
+  return 'bg-[var(--color-overlay-1)] border-[var(--color-hairline-strong)] text-[var(--color-ink)]';
 }
 
 export function parseTags(tags: string | undefined): string[] {

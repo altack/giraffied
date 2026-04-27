@@ -152,10 +152,10 @@ export function ContextSwitcher() {
         onClick={toggle}
         className={cn(
           'group inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5',
-          'text-[12px] text-zinc-500',
-          'hover:bg-white/[0.04] hover:text-zinc-300 transition-colors duration-150',
+          'text-[12px] text-[var(--color-ink-muted)]',
+          'hover:bg-[var(--color-overlay-1)] hover:text-[var(--color-ink)] transition-colors duration-150',
           'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40',
-          open && 'bg-white/[0.05] text-zinc-300',
+          open && 'bg-[var(--color-overlay-1)] text-[var(--color-ink)]',
         )}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -163,12 +163,12 @@ export function ContextSwitcher() {
       >
         <span className="truncate">
           {org}
-          <span className="text-zinc-700 mx-1">/</span>
+          <span className="text-[var(--color-ink-dim)] mx-1">/</span>
           {projectName}
-          <span className="text-zinc-700 mx-1">/</span>
-          <span className="text-zinc-300">{teamName}</span>
+          <span className="text-[var(--color-ink-dim)] mx-1">/</span>
+          <span className="text-[var(--color-ink)]">{teamName}</span>
         </span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+        <ChevronDown className="h-3 w-3 shrink-0 text-[var(--color-ink-dim)] group-hover:text-[var(--color-ink-muted)] transition-colors" />
       </button>
       {open &&
         placement &&
@@ -252,18 +252,18 @@ function MenuView({
 }) {
   return (
     <div>
-      <div className="px-3 py-2 border-b border-white/[0.06] text-[11.5px] text-zinc-500 truncate">
+      <div className="px-3 py-2 border-b border-[var(--color-hairline)] text-[11.5px] text-[var(--color-ink-muted)] truncate">
         {org}
-        <span className="text-zinc-700 mx-1">/</span>
+        <span className="text-[var(--color-ink-dim)] mx-1">/</span>
         {projectName}
-        <span className="text-zinc-700 mx-1">/</span>
-        <span className="text-zinc-200">{teamName}</span>
+        <span className="text-[var(--color-ink-dim)] mx-1">/</span>
+        <span className="text-[var(--color-ink)]">{teamName}</span>
       </div>
       <div className="py-1">
         <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Switch project…" onClick={onSwitchProject} />
         <MenuRow icon={<Users className="h-3.5 w-3.5" />} label="Switch team…" onClick={onSwitchTeam} />
       </div>
-      <div className="border-t border-white/[0.06] py-1">
+      <div className="border-t border-[var(--color-hairline)] py-1">
         <MenuRow
           icon={<LogOut className="h-3.5 w-3.5" />}
           label="Sign out / change organization"
@@ -293,11 +293,11 @@ function MenuRow({
       className={cn(
         'flex w-full items-center gap-2.5 px-3 py-1.5 text-[12.5px] text-left transition-colors',
         tone === 'danger'
-          ? 'text-zinc-300 hover:bg-red-500/[0.08] hover:text-red-200'
-          : 'text-zinc-200 hover:bg-white/[0.04]',
+          ? 'text-[var(--color-ink-muted)] hover:bg-red-500/[0.08] hover:text-red-300'
+          : 'text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]',
       )}
     >
-      <span className={cn(tone === 'danger' ? 'text-red-300/80' : 'text-zinc-500')}>{icon}</span>
+      <span className={cn(tone === 'danger' ? 'text-red-300/80' : 'text-[var(--color-ink-muted)]')}>{icon}</span>
       {label}
     </button>
   );
@@ -330,9 +330,9 @@ function ProjectPicker({
           render={(p) => (
             <>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium text-zinc-100 truncate">{p.name}</div>
+                <div className="text-[13px] font-medium text-[var(--color-ink)] truncate">{p.name}</div>
                 {p.description && (
-                  <div className="text-[11px] text-zinc-500 line-clamp-1">{p.description}</div>
+                  <div className="text-[11px] text-[var(--color-ink-muted)] line-clamp-1">{p.description}</div>
                 )}
               </div>
               {p.id === currentId && <Check className="h-3.5 w-3.5 text-emerald-400/80 shrink-0" />}
@@ -382,9 +382,9 @@ function TeamPicker({
           render={(t) => (
             <>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium text-zinc-100 truncate">{t.name}</div>
+                <div className="text-[13px] font-medium text-[var(--color-ink)] truncate">{t.name}</div>
                 {t.description && (
-                  <div className="text-[11px] text-zinc-500 line-clamp-1">{t.description}</div>
+                  <div className="text-[11px] text-[var(--color-ink-muted)] line-clamp-1">{t.description}</div>
                 )}
               </div>
               {t.id === currentTeamId && <Check className="h-3.5 w-3.5 text-emerald-400/80 shrink-0" />}
@@ -416,25 +416,25 @@ function PickerShell({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/[0.06]">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--color-hairline)]">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center justify-center h-6 w-6 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.05]"
+          className="inline-flex items-center justify-center h-6 w-6 rounded text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]"
           aria-label="Back"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
         <div className="min-w-0">
-          <div className="text-[12px] font-medium text-zinc-200 leading-tight">{title}</div>
+          <div className="text-[12px] font-medium text-[var(--color-ink)] leading-tight">{title}</div>
           {subtitle && (
-            <div className="text-[10.5px] text-zinc-500 truncate leading-tight">{subtitle}</div>
+            <div className="text-[10.5px] text-[var(--color-ink-muted)] truncate leading-tight">{subtitle}</div>
           )}
         </div>
       </div>
-      <div className="p-1.5 border-b border-white/[0.06]">
+      <div className="p-1.5 border-b border-[var(--color-hairline)]">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-ink-dim)] pointer-events-none" />
           <Input
             autoFocus
             value={value}
@@ -461,7 +461,7 @@ function PickerList<T extends { id: string }>({
   empty: string;
 }) {
   if (items.length === 0) {
-    return <div className="px-3 py-4 text-center text-[12px] text-zinc-600">{empty}</div>;
+    return <div className="px-3 py-4 text-center text-[12px] text-[var(--color-ink-dim)]">{empty}</div>;
   }
   return (
     <ul>
@@ -470,7 +470,7 @@ function PickerList<T extends { id: string }>({
           <button
             type="button"
             onClick={() => onSelect(item)}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-white/[0.04] transition-colors"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--color-overlay-1)] transition-colors"
           >
             {render(item)}
           </button>
@@ -482,7 +482,7 @@ function PickerList<T extends { id: string }>({
 
 function PickerSpinner() {
   return (
-    <div className="flex items-center justify-center py-6 text-zinc-600">
+    <div className="flex items-center justify-center py-6 text-[var(--color-ink-dim)]">
       <Loader2 className="h-4 w-4 animate-spin" />
     </div>
   );

@@ -71,7 +71,7 @@ export function HtmlWidget({
     return (
       <RichTextRenderer
         html={value ?? ''}
-        className="jfd-description-body text-[13px] text-zinc-300 max-w-none"
+        className="jfd-description-body text-[13px] text-[var(--color-ink)] max-w-none"
       />
     );
   }
@@ -99,8 +99,8 @@ export function PlainTextWidget({
       rows={3}
       className={cn(
         'w-full field-sizing-content rounded-md px-3 py-2 resize-none',
-        'text-[13px] text-zinc-100 placeholder:text-zinc-600',
-        'bg-white/[0.03] border border-white/[0.08]',
+        'text-[13px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-dim)]',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)]',
         'focus-visible:outline-none focus-visible:border-indigo-400/50 focus-visible:ring-2 focus-visible:ring-indigo-400/20',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'transition-colors duration-150',
@@ -187,9 +187,10 @@ export function DateTimeWidget({
       }}
       disabled={disabled || control.readOnly}
       className={cn(
-        'h-8 w-full rounded-md px-3 text-[13px] text-zinc-100',
-        'bg-white/[0.03] border border-white/[0.08]',
-        '[color-scheme:dark]',
+        'h-8 w-full rounded-md px-3 text-[13px] text-[var(--color-ink)]',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)]',
+        // color-scheme on the element is inherited from html — don't pin to dark
+        // here, otherwise the native picker stays dark in light theme.
         'focus-visible:outline-none focus-visible:border-indigo-400/50 focus-visible:ring-2 focus-visible:ring-indigo-400/20',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'transition-colors duration-150',
@@ -207,7 +208,7 @@ export function BooleanWidget({
   control,
 }: WidgetProps<boolean>) {
   return (
-    <label className="inline-flex items-center gap-2 text-[13px] text-zinc-200 select-none cursor-pointer">
+    <label className="inline-flex items-center gap-2 text-[13px] text-[var(--color-ink)] select-none cursor-pointer">
       <input
         type="checkbox"
         checked={!!value}
@@ -215,10 +216,10 @@ export function BooleanWidget({
         disabled={disabled || control.readOnly}
         className={cn(
           'h-4 w-4 rounded accent-indigo-400',
-          'bg-white/[0.03] border border-white/[0.08]',
+          'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)]',
         )}
       />
-      <span className="text-zinc-400">Yes</span>
+      <span className="text-[var(--color-ink-muted)]">Yes</span>
     </label>
   );
 }
@@ -235,8 +236,8 @@ export function ReadOnlyWidget({ value, control }: WidgetProps) {
   return (
     <div
       className={cn(
-        'w-full h-8 flex items-center px-2.5 text-[13px] text-zinc-300',
-        'bg-white/[0.02] border border-white/[0.06] rounded-md',
+        'w-full h-8 flex items-center px-2.5 text-[13px] text-[var(--color-ink)]',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline)] rounded-md',
       )}
       title={control.helpText ?? formatted}
     >

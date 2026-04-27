@@ -43,8 +43,8 @@ function EditorSkeleton({
       aria-hidden
       className={cn(
         'jfd-tt rounded-md overflow-hidden',
-        variant === 'default' && 'border border-white/[0.08] bg-white/[0.03]',
-        variant === 'minimal' && 'border border-white/[0.08] bg-white/[0.03]',
+        variant === 'default' && 'border border-[var(--color-hairline-strong)] bg-[var(--color-overlay-soft)]',
+        variant === 'minimal' && 'border border-[var(--color-hairline-strong)] bg-[var(--color-overlay-soft)]',
         variant === 'plain' && 'border border-transparent',
         className,
       )}

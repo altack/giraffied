@@ -228,7 +228,7 @@ export function CreateTaskDialog({
             style={{ backgroundColor: workItemTypeStyle('Task').dot }}
             aria-hidden
           />
-          <span className="text-zinc-300">New task</span>
+          <span className="text-[var(--color-ink)]">New task</span>
         </span>
       }
       footer={
@@ -239,7 +239,7 @@ export function CreateTaskDialog({
               <span className="mono truncate max-w-[240px]">{error}</span>
             </div>
           )}
-          <span className="mr-2 hidden md:inline text-[11px] text-zinc-600 mono">
+          <span className="mr-2 hidden md:inline text-[11px] text-[var(--color-ink-dim)] mono">
             ⏎ save · ⌘⏎ save & create another · Esc cancel
           </span>
           <Button variant="ghost" size="sm" type="button" onClick={onClose}>
@@ -311,7 +311,7 @@ function Field({
 }) {
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
         {label}
       </div>
       {children}

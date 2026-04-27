@@ -12,20 +12,27 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Primary: pearled/glass surface in dark; in light theme the overlay
+        // tokens flip to dark-on-white, so the button reads as a solid dark
+        // chip instead of an invisible white-on-white pill.
         default: [
-          'text-zinc-50',
-          'bg-white/[0.09] backdrop-blur-xl',
-          'border border-white/[0.14]',
-          'shadow-[inset_0_1px_0_0_rgb(255_255_255/0.14),0_1px_0_0_rgb(0_0_0/0.35)]',
-          'hover:bg-white/[0.13] hover:border-white/[0.18]',
+          'text-[var(--color-ink)]',
+          'bg-[var(--color-overlay-strong)] backdrop-blur-xl',
+          'border border-[var(--color-hairline-loud)]',
+          'shadow-[inset_0_1px_0_0_var(--color-lit-top),0_1px_0_0_rgb(0_0_0/0.25)]',
+          'hover:bg-[var(--color-overlay-loud)]',
         ].join(' '),
         secondary: [
-          'text-zinc-200 bg-white/[0.04] border border-white/[0.08]',
-          'hover:bg-white/[0.07] hover:border-white/[0.12]',
+          'text-[var(--color-ink)]',
+          'bg-[var(--color-overlay-soft)]',
+          'border border-[var(--color-hairline-strong)]',
+          'hover:bg-[var(--color-overlay-1)]',
           'lit-top',
         ].join(' '),
-        ghost:
-          'bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.05]',
+        ghost: [
+          'bg-transparent text-[var(--color-ink-muted)]',
+          'hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]',
+        ].join(' '),
         destructive:
           'bg-red-600/90 text-white hover:bg-red-500 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.12)]',
       },

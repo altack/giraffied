@@ -27,8 +27,8 @@ export function SearchTrigger({ onOpen }: { onOpen: () => void }) {
       aria-label="Open search"
       className={cn(
         'group inline-flex items-center gap-2 h-7 w-[220px] px-2 rounded-md text-left',
-        'bg-white/[0.03] border border-white/[0.06] lit-top',
-        'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.05] hover:border-white/[0.10]',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline)] lit-top',
+        'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)] hover:border-[var(--color-hairline-strong)]',
         'transition-colors duration-150',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
       )}
@@ -36,7 +36,7 @@ export function SearchTrigger({ onOpen }: { onOpen: () => void }) {
       <Search className="h-3.5 w-3.5 shrink-0 opacity-80 group-hover:opacity-100" aria-hidden />
       <span className="flex-1 text-[12px] truncate">Search work items…</span>
       <span
-        className="mono text-[10px] text-zinc-600 shrink-0 px-1 py-px rounded border border-white/[0.06] bg-white/[0.02]"
+        className="mono text-[10px] text-[var(--color-ink-dim)] shrink-0 px-1 py-px rounded border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)]"
         aria-hidden
       >
         {isMac ? '⌘K' : 'Ctrl K'}

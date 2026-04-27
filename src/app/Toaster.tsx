@@ -34,7 +34,7 @@ function ToastItem({ toast }: { toast: Toast }) {
         'border backdrop-blur-xl shadow-2xl shadow-black/50',
         isError
           ? 'bg-red-500/10 border-red-500/25 text-red-100'
-          : 'bg-[var(--color-surface-2)]/85 border-white/[0.08] text-zinc-100',
+          : 'bg-[var(--color-surface-2)]/85 border-[var(--color-hairline-strong)] text-[var(--color-ink)]',
       )}
     >
       {isError ? (

@@ -187,9 +187,9 @@ export function AssigneeFilter({
             role="dialog"
             aria-label="Filter by assignee"
           >
-            <div className="p-2 border-b border-white/[0.05]">
+            <div className="p-2 border-b border-[var(--color-hairline)]">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-500 pointer-events-none" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--color-ink-muted)] pointer-events-none" />
                 <input
                   ref={searchRef}
                   autoFocus
@@ -199,9 +199,9 @@ export function AssigneeFilter({
                   placeholder="Filter by assignee…"
                   className={cn(
                     'w-full h-7 pl-7 pr-2 rounded-md text-[12.5px]',
-                    'bg-white/[0.03] border border-white/[0.06] text-zinc-100',
-                    'placeholder:text-zinc-600',
-                    'focus:outline-none focus:border-indigo-400/40 focus:bg-white/[0.05]',
+                    'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline)] text-[var(--color-ink)]',
+                    'placeholder:text-[var(--color-ink-dim)]',
+                    'focus:outline-none focus:border-indigo-400/40 focus:bg-[var(--color-overlay-1)]',
                     'transition-colors duration-100',
                   )}
                 />
@@ -224,15 +224,15 @@ export function AssigneeFilter({
                       className={cn(
                         'w-full flex items-center gap-2 px-2 py-1.5 text-left text-[12.5px]',
                         'transition-colors duration-100',
-                        isActive && 'bg-white/[0.05]',
+                        isActive && 'bg-[var(--color-overlay-1)]',
                         isSelected && 'bg-indigo-400/[0.08]',
                       )}
                     >
                       <Avatar identity={e.identity} size="sm" />
-                      <span className="flex-1 truncate text-zinc-100">
+                      <span className="flex-1 truncate text-[var(--color-ink)]">
                         {e.identity.displayName}
                       </span>
-                      <span className="mono text-[10.5px] text-zinc-500 shrink-0">
+                      <span className="mono text-[10.5px] text-[var(--color-ink-muted)] shrink-0">
                         {e.count}
                       </span>
                       {isSelected ? (
@@ -245,7 +245,7 @@ export function AssigneeFilter({
                 );
               })}
               {filtered.length === 0 && (
-                <li className="px-3 py-4 text-[12px] text-zinc-600 text-center">
+                <li className="px-3 py-4 text-[12px] text-[var(--color-ink-dim)] text-center">
                   No matches
                 </li>
               )}
@@ -282,8 +282,8 @@ function IdleTrigger({
       className={cn(
         'group inline-flex items-center gap-1.5 h-7 pl-1.5 pr-2 rounded-md',
         'border border-transparent transition-colors duration-150',
-        'text-zinc-400 hover:text-zinc-100',
-        open ? 'bg-white/[0.07] text-zinc-100' : 'hover:bg-white/[0.04]',
+        'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]',
+        open ? 'bg-[var(--color-overlay-1)] text-[var(--color-ink)]' : 'hover:bg-[var(--color-overlay-soft)]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
       )}
     >
@@ -302,7 +302,7 @@ function IdleTrigger({
         ))}
       </span>
       {rest > 0 && (
-        <span className="mono text-[10.5px] text-zinc-500 group-hover:text-zinc-300">
+        <span className="mono text-[10.5px] text-[var(--color-ink-muted)] group-hover:text-[var(--color-ink)]">
           +{rest}
         </span>
       )}
@@ -341,7 +341,7 @@ function ActiveChip({
         className={cn(
           'inline-flex items-center gap-1.5 h-6 pl-0.5 pr-1.5 rounded-sm',
           'text-[12px] text-indigo-100 font-medium',
-          'hover:bg-white/[0.04] transition-colors duration-100',
+          'hover:bg-[var(--color-overlay-soft)] transition-colors duration-100',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
         )}
       >
@@ -356,7 +356,7 @@ function ActiveChip({
         aria-label="Clear assignee filter"
         className={cn(
           'inline-flex items-center justify-center h-5 w-5 rounded',
-          'text-indigo-200/70 hover:text-white hover:bg-white/[0.06]',
+          'text-indigo-200/70 hover:text-white hover:bg-[var(--color-overlay-1)]',
           'transition-colors duration-100',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
         )}

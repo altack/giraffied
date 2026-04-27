@@ -138,19 +138,19 @@ export function PicklistPicker({
         title={value || undefined}
         className={cn(
           'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px] text-left',
-          'bg-white/[0.03] border border-white/[0.08] text-zinc-100',
-          'hover:bg-white/[0.05]',
+          'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)] text-[var(--color-ink)]',
+          'hover:bg-[var(--color-overlay-1)]',
           'focus-visible:outline-none focus-visible:border-indigo-400/40 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
           'disabled:opacity-60 disabled:cursor-not-allowed',
           'transition-colors duration-150',
         )}
       >
         <span
-          className={cn('truncate flex-1', !value && 'text-zinc-600')}
+          className={cn('truncate flex-1', !value && 'text-[var(--color-ink-dim)]')}
         >
           {value || placeholder}
         </span>
-        <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+        <ChevronDown className="h-3.5 w-3.5 text-[var(--color-ink-muted)] shrink-0" />
       </button>
       {open &&
         placement &&
@@ -164,7 +164,7 @@ export function PicklistPicker({
               placement.origin,
             )}
           >
-            <div className="p-1.5 border-b border-white/[0.06]">
+            <div className="p-1.5 border-b border-[var(--color-hairline)]">
               <Input
                 autoFocus
                 value={filter}
@@ -179,11 +179,11 @@ export function PicklistPicker({
                   type="button"
                   onClick={() => pick('')}
                   className={cn(
-                    'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-400 hover:bg-white/[0.04]',
-                    value === '' && 'bg-white/[0.03] text-zinc-100',
+                    'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink-muted)] hover:bg-[var(--color-overlay-1)]',
+                    value === '' && 'bg-[var(--color-overlay-soft)] text-[var(--color-ink)]',
                   )}
                 >
-                  <Minus className="h-4 w-4 text-zinc-500" />
+                  <Minus className="h-4 w-4 text-[var(--color-ink-muted)]" />
                   {clearLabel}
                 </button>
               )}
@@ -196,8 +196,8 @@ export function PicklistPicker({
                     onClick={() => pick(opt)}
                     title={opt}
                     className={cn(
-                      'w-full flex items-start gap-2 px-2.5 py-1.5 text-[13px] text-zinc-200 hover:bg-white/[0.04]',
-                      selected && 'bg-white/[0.03]',
+                      'w-full flex items-start gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]',
+                      selected && 'bg-[var(--color-overlay-soft)]',
                     )}
                   >
                     <span className="flex-1 text-left leading-snug line-clamp-2 break-words">
@@ -210,7 +210,7 @@ export function PicklistPicker({
                 );
               })}
               {results.length === 0 && (
-                <div className="px-2.5 py-2 text-[12px] text-zinc-600">No matches.</div>
+                <div className="px-2.5 py-2 text-[12px] text-[var(--color-ink-dim)]">No matches.</div>
               )}
             </div>
           </div>,

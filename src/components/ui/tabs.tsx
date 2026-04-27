@@ -24,7 +24,7 @@ export function Tabs<V extends string>({
     <div
       role="tablist"
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] p-0.5',
+        'inline-flex items-center gap-0.5 rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] p-0.5',
         className,
       )}
     >
@@ -41,8 +41,8 @@ export function Tabs<V extends string>({
               'inline-flex items-center gap-1.5 rounded px-2.5 h-7 text-[12px] font-medium',
               'transition-colors duration-120',
               active
-                ? 'bg-white/[0.08] text-zinc-100 lit-top'
-                : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.03]',
+                ? 'bg-[var(--color-overlay-2)] text-[var(--color-ink)] lit-top'
+                : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-soft)]',
             )}
           >
             <span>{it.label}</span>
@@ -50,7 +50,7 @@ export function Tabs<V extends string>({
               <span
                 className={cn(
                   'mono text-[10px] rounded-[3px] px-1 py-px',
-                  active ? 'bg-white/[0.06] text-zinc-300' : 'bg-white/[0.04] text-zinc-500',
+                  active ? 'bg-[var(--color-overlay-1)] text-[var(--color-ink)]' : 'bg-[var(--color-overlay-soft)] text-[var(--color-ink-muted)]',
                 )}
               >
                 {it.badge}

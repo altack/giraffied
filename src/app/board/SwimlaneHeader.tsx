@@ -36,7 +36,7 @@ function BannerShell({
       onClick={handleShellClick}
       className={cn(
         'group flex w-full items-center gap-2 py-1 text-[13.5px] text-left cursor-pointer',
-        'rounded-md px-1 -mx-1 hover:bg-white/[0.03] transition-colors',
+        'rounded-md px-1 -mx-1 hover:bg-[var(--color-overlay-soft)] transition-colors',
         isRecentlyFocused && 'jfd-focus-hint',
       )}
       // Subtle horizontal bleed of the inherited --lane-hue — feels like the
@@ -56,7 +56,7 @@ function BannerShell({
           e.stopPropagation();
           onToggle();
         }}
-        className="inline-flex items-center justify-center rounded p-0.5 text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40 transition-colors"
+        className="inline-flex items-center justify-center rounded p-0.5 text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)] focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/40 transition-colors"
       >
         <ChevronDown
           className={cn(
@@ -102,8 +102,8 @@ export function SwimlaneBanner({
         style={{ backgroundColor: type.dot }}
         aria-hidden
       />
-      <span className="text-zinc-400 shrink-0">{type.label}</span>
-      <span className="mono text-[11px] text-zinc-600 shrink-0">#{row.id}</span>
+      <span className="text-[var(--color-ink-muted)] shrink-0">{type.label}</span>
+      <span className="mono text-[11px] text-[var(--color-ink-dim)] shrink-0">#{row.id}</span>
       {state && (
         <span
           className={cn(
@@ -146,9 +146,9 @@ export function SwimlaneBanner({
           // glyphs still initiates a text selection instead of bubbling to the
           // banner toggle. Negative margin cancels the padding in flex layout.
           'px-1 -mx-1',
-          'text-zinc-100 font-medium',
-          onOpen && 'cursor-pointer hover:underline underline-offset-2 decoration-white/30',
-          'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
+          'text-[var(--color-ink)] font-medium',
+          onOpen && 'cursor-pointer hover:underline underline-offset-2 decoration-[var(--color-ink-dim)]',
+          'focus:outline-none focus-visible:underline focus-visible:decoration-[var(--color-ink-muted)]',
         )}
       >
         {f['System.Title']}
@@ -158,7 +158,7 @@ export function SwimlaneBanner({
           because a card moved". */}
       <span
         key={totalTasks}
-        className="mono text-[11px] text-zinc-600 shrink-0 jfd-count-roll inline-block"
+        className="mono text-[11px] text-[var(--color-ink-dim)] shrink-0 jfd-count-roll inline-block"
       >
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'}{' '}
       </span>
@@ -167,7 +167,7 @@ export function SwimlaneBanner({
           {tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center rounded-sm bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-400"
+              className="inline-flex items-center rounded-sm bg-[var(--color-overlay-1)] px-1.5 py-0.5 text-[10px] text-[var(--color-ink-muted)]"
             >
               {tag}
             </span>
@@ -175,7 +175,7 @@ export function SwimlaneBanner({
         </div>
       )}
       {points != null && (
-        <span className="mono text-[11px] text-zinc-500 shrink-0">· {points}SP</span>
+        <span className="mono text-[11px] text-[var(--color-ink-muted)] shrink-0">· {points}SP</span>
       )}
       {assignee?.displayName && (
         <span className="ml-1 shrink-0 flex">
@@ -208,10 +208,10 @@ export function UnparentedBanner({
 }) {
   return (
     <BannerShell collapsed={collapsed} onToggle={onToggle} isRecentlyFocused={isRecentlyFocused}>
-      <span className="text-zinc-300 font-medium">Everything else</span>
+      <span className="text-[var(--color-ink)] font-medium">Everything else</span>
       <span
         key={totalTasks}
-        className="text-[11px] text-zinc-600 shrink-0 jfd-count-roll inline-block"
+        className="text-[11px] text-[var(--color-ink-dim)] shrink-0 jfd-count-roll inline-block"
       >
         · {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} with no parent in this sprint
       </span>

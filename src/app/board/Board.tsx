@@ -288,9 +288,9 @@ function CenteredMessage({
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-2 text-center">
-        <div className="text-zinc-600">{icon}</div>
-        <div className="text-[13px] text-zinc-300">{text}</div>
-        {subtext && <div className="text-[12px] text-zinc-600">{subtext}</div>}
+        <div className="text-[var(--color-ink-dim)]">{icon}</div>
+        <div className="text-[13px] text-[var(--color-ink)]">{text}</div>
+        {subtext && <div className="text-[12px] text-[var(--color-ink-muted)]">{subtext}</div>}
       </div>
     </div>
   );

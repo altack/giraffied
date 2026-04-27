@@ -150,17 +150,17 @@ export function AssigneePicker({
         onClick={toggle}
         className={cn(
           'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px] text-left',
-          'bg-white/[0.03] border border-white/[0.08] text-zinc-100',
-          'hover:bg-white/[0.05]',
+          'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)] text-[var(--color-ink)]',
+          'hover:bg-[var(--color-overlay-1)]',
           'focus-visible:outline-none focus-visible:border-indigo-400/40 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
-          'disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/[0.03]',
+          'disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-overlay-soft)]',
           'transition-colors duration-150',
           buttonClassName,
         )}
       >
         <Avatar identity={value ?? undefined} size="sm" />
         <span className="truncate flex-1">{value?.displayName ?? 'Unassigned'}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+        <ChevronDown className="h-3.5 w-3.5 text-[var(--color-ink-muted)] shrink-0" />
       </button>
       {open &&
         placement &&
@@ -174,7 +174,7 @@ export function AssigneePicker({
               placement.origin,
             )}
           >
-            <div className="p-1.5 border-b border-white/[0.06]">
+            <div className="p-1.5 border-b border-[var(--color-hairline)]">
               <Input
                 autoFocus
                 value={filter}
@@ -188,11 +188,11 @@ export function AssigneePicker({
                 type="button"
                 onClick={() => pick(null)}
                 className={cn(
-                  'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-400 hover:bg-white/[0.04]',
-                  value === null && 'bg-white/[0.03] text-zinc-100',
+                  'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink-muted)] hover:bg-[var(--color-overlay-1)]',
+                  value === null && 'bg-[var(--color-overlay-soft)] text-[var(--color-ink)]',
                 )}
               >
-                <UserX className="h-4 w-4 text-zinc-500" />
+                <UserX className="h-4 w-4 text-[var(--color-ink-muted)]" />
                 Unassigned
               </button>
               {isError && (
@@ -209,14 +209,14 @@ export function AssigneePicker({
                     type="button"
                     onClick={() => pick(id)}
                     className={cn(
-                      'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-200 hover:bg-white/[0.04]',
-                      selected && 'bg-white/[0.03]',
+                      'w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]',
+                      selected && 'bg-[var(--color-overlay-soft)]',
                     )}
                   >
                     <Avatar identity={id} size="sm" />
                     <span className="truncate flex-1 text-left">{id.displayName}</span>
                     {id.uniqueName && (
-                      <span className="text-[11px] text-zinc-600 truncate mono max-w-[140px]">
+                      <span className="text-[11px] text-[var(--color-ink-dim)] truncate mono max-w-[140px]">
                         {id.uniqueName}
                       </span>
                     )}
@@ -224,7 +224,7 @@ export function AssigneePicker({
                 );
               })}
               {results.length === 0 && !isError && (
-                <div className="px-2.5 py-2 text-[12px] text-zinc-600 flex items-center gap-1.5">
+                <div className="px-2.5 py-2 text-[12px] text-[var(--color-ink-dim)] flex items-center gap-1.5">
                   {searching && membersLoading && (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   )}

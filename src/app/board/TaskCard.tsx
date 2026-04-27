@@ -71,16 +71,15 @@ export function TaskCard({
       style={style}
       className={cn(
         'group relative rounded-md text-sm',
-        // Frosted-glass surface: a thin semi-transparent white film + backdrop
-        // blur. There's no hardcoded surface color, so whatever the cell's
-        // lane-hue gradient renders behind the card passes through — that's
-        // the "light coming from the background" without the card feeling
-        // see-through.
-        'bg-white/[0.035] backdrop-blur-md border border-white/[0.06]',
-        'hover:bg-white/[0.06] hover:border-white/[0.10]',
+        // Frosted-glass surface: a thin overlay film + backdrop blur. The
+        // overlay tokens are theme-aware (white-on-dark / black-on-light), so
+        // the card is faintly visible against any canvas while still letting
+        // the cell's lane-hue gradient bleed through underneath.
+        'bg-[var(--color-overlay-soft)] backdrop-blur-md border border-[var(--color-hairline)]',
+        'hover:bg-[var(--color-overlay-1)] hover:border-[var(--color-hairline-strong)]',
         'transition-colors duration-150',
         'lit-top',
-        isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-white/[0.08]',
+        isDragging && 'shadow-xl shadow-black/40 ring-1 ring-indigo-400/30 bg-[var(--color-overlay-2)]',
         isRecentlyFocused && !isDragging && 'jfd-focus-hint',
       )}
     >
@@ -120,9 +119,9 @@ export function TaskCard({
               // drag layer. Negative margin cancels the padding in flex layout
               // so neighbors don't shift.
               'px-1 -mx-1',
-              'text-[13.5px] leading-[1.4] text-zinc-100 line-clamp-3',
-              onOpen && 'cursor-pointer hover:underline underline-offset-2 decoration-white/30',
-              'focus:outline-none focus-visible:underline focus-visible:decoration-white/40',
+              'text-[13.5px] leading-[1.4] text-[var(--color-ink)] line-clamp-3',
+              onOpen && 'cursor-pointer hover:underline underline-offset-2 decoration-[var(--color-ink-dim)]',
+              'focus:outline-none focus-visible:underline focus-visible:decoration-[var(--color-ink-muted)]',
             )}
           >
             {f['System.Title']}
@@ -137,29 +136,29 @@ export function TaskCard({
             {tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center rounded-sm bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-400"
+                className="inline-flex items-center rounded-sm bg-[var(--color-overlay-1)] px-1.5 py-0.5 text-[10px] text-[var(--color-ink-muted)]"
               >
                 {tag}
               </span>
             ))}
             {tags.length > 3 && (
-              <span className="text-[10px] text-zinc-600">+{tags.length - 3}</span>
+              <span className="text-[10px] text-[var(--color-ink-dim)]">+{tags.length - 3}</span>
             )}
           </div>
         )}
-        <div className="mt-2.5 flex items-center justify-between text-[11px] text-zinc-500">
+        <div className="mt-2.5 flex items-center justify-between text-[11px] text-[var(--color-ink-muted)]">
           <div className="flex items-center gap-1.5 min-w-0 select-text pointer-events-auto">
             <span
               className="h-1.5 w-1.5 rounded-full shrink-0"
               style={{ backgroundColor: type.dot }}
               aria-hidden
             />
-            <span className="text-zinc-400 shrink-0">{type.label}</span>
-            <span className="text-zinc-700 shrink-0">·</span>
-            <span className="mono text-zinc-600 shrink-0">#{task.workItem.id}</span>
+            <span className="text-[var(--color-ink-muted)] shrink-0">{type.label}</span>
+            <span className="text-[var(--color-ink-dim)] shrink-0">·</span>
+            <span className="mono text-[var(--color-ink-dim)] shrink-0">#{task.workItem.id}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {remaining != null && <span className="mono text-zinc-500">{remaining}h</span>}
+            {remaining != null && <span className="mono text-[var(--color-ink-muted)]">{remaining}h</span>}
             <Avatar identity={assignee} size="sm" />
           </div>
         </div>

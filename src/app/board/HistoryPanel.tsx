@@ -46,7 +46,7 @@ export function HistoryPanel({
 
   if (q.isLoading) {
     return (
-      <div className="text-[12px] text-zinc-500 flex items-center gap-1.5 py-2">
+      <div className="text-[12px] text-[var(--color-ink-muted)] flex items-center gap-1.5 py-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading history…
       </div>
     );
@@ -58,23 +58,23 @@ export function HistoryPanel({
   const events = (q.data ?? []).flatMap(describeUpdate).reverse().slice(0, 80);
 
   if (events.length === 0) {
-    return <div className="text-[12px] text-zinc-600 py-2">No activity yet.</div>;
+    return <div className="text-[12px] text-[var(--color-ink-dim)] py-2">No activity yet.</div>;
   }
 
   return (
-    <div className="rounded-md border border-white/[0.06] bg-white/[0.015] divide-y divide-white/[0.04]">
+    <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] divide-y divide-[var(--color-hairline)]">
       {events.map((ev, i) => (
         <div key={i} className="flex items-start gap-2 px-3 py-2 text-[12px]">
           <div className="pt-0.5">
             <Avatar identity={ev.by} size="sm" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-zinc-300">
+            <div className="text-[var(--color-ink)]">
               <span className="font-medium">{ev.by?.displayName ?? 'Someone'}</span>{' '}
-              <span className="text-zinc-500">{ev.summary}</span>
+              <span className="text-[var(--color-ink-muted)]">{ev.summary}</span>
             </div>
           </div>
-          <div className="text-[11px] text-zinc-600 mono shrink-0">
+          <div className="text-[11px] text-[var(--color-ink-muted)] mono shrink-0">
             {relativeTime(ev.at)}
           </div>
         </div>

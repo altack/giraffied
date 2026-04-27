@@ -51,8 +51,8 @@ export function DescriptionField({
       <div
         className={cn(
           'jfd-description-body rounded-md px-3 py-2 min-h-[40px]',
-          'text-[13px] leading-[1.5] text-zinc-300',
-          isEmpty && 'text-zinc-600 italic',
+          'text-[13px] leading-[1.5] text-[var(--color-ink)]',
+          isEmpty && 'text-[var(--color-ink-dim)] italic',
         )}
       >
         {isEmpty ? placeholder : <RichTextRenderer html={value} />}
@@ -80,11 +80,11 @@ export function DescriptionField({
       }}
       className={cn(
         'jfd-description-body cursor-text rounded-md px-3 py-2 min-h-[40px]',
-        'text-[13px] leading-[1.5] text-zinc-200',
-        'border border-transparent hover:bg-white/[0.02] hover:border-white/[0.04]',
-        'focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
+        'text-[13px] leading-[1.5] text-[var(--color-ink)]',
+        'border border-transparent hover:bg-[var(--color-overlay-soft)] hover:border-[var(--color-hairline)]',
+        'focus-visible:outline-none focus-visible:bg-[var(--color-overlay-1)] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
         'transition-colors duration-150',
-        isEmpty && 'text-zinc-600 italic',
+        isEmpty && 'text-[var(--color-ink-dim)] italic',
       )}
     >
       {isEmpty ? (

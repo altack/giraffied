@@ -107,7 +107,7 @@ export function OnboardingFlow() {
           <h1 className="text-[22px] font-semibold tracking-tight leading-tight">
             Connect to Azure DevOps
           </h1>
-          <p className="text-[13px] text-zinc-500 leading-relaxed">
+          <p className="text-[13px] text-[var(--color-ink-muted)] leading-relaxed">
             Giraffied talks directly to the Azure DevOps REST API from your browser. Nothing goes
             through a server.
           </p>
@@ -117,7 +117,7 @@ export function OnboardingFlow() {
             step change. The surrounding panel (border/bg/padding) stays
             static so only the content tweens, which keeps the card from
             "breathing" on every step. */}
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 lit-top">
+        <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] p-5 lit-top">
           <div key={step} className="jfd-view-swap">
           {step === 'credentials' && (
             <form onSubmit={handleCredentials} className="space-y-4">
@@ -132,7 +132,7 @@ export function OnboardingFlow() {
                   spellCheck={false}
                 />
                 <Hint>
-                  The segment after <code className="mono text-zinc-400">dev.azure.com/</code>
+                  The segment after <code className="mono text-[var(--color-ink)]">dev.azure.com/</code>
                 </Hint>
               </Field>
               <Field label="Personal Access Token" htmlFor="pat">
@@ -146,7 +146,7 @@ export function OnboardingFlow() {
                   spellCheck={false}
                 />
                 <Hint>
-                  Needs scope <code className="mono text-zinc-400">Work Items (Read &amp; write)</code>.{' '}
+                  Needs scope <code className="mono text-[var(--color-ink)]">Work Items (Read &amp; write)</code>.{' '}
                   <a
                     href={
                       org.trim()
@@ -171,8 +171,8 @@ export function OnboardingFlow() {
 
           {step === 'project' && (
             <div className="space-y-4">
-              <div className="text-[13px] text-zinc-400">
-                Connected to <code className="mono text-zinc-200">{org}</code>. Choose a project.
+              <div className="text-[13px] text-[var(--color-ink-muted)]">
+                Connected to <code className="mono text-[var(--color-ink)]">{org}</code>. Choose a project.
               </div>
               <SearchInput
                 value={projectFilter}
@@ -189,17 +189,17 @@ export function OnboardingFlow() {
                 renderItem={(p) => (
                   <>
                     <div className="min-w-0">
-                      <div className="text-[13px] font-medium text-zinc-100 truncate">
+                      <div className="text-[13px] font-medium text-[var(--color-ink)] truncate">
                         {p.name}
                       </div>
                       {p.description && (
-                        <div className="text-[11.5px] text-zinc-500 line-clamp-1">
+                        <div className="text-[11.5px] text-[var(--color-ink-muted)] line-clamp-1">
                           {p.description}
                         </div>
                       )}
                     </div>
                     {busy && selectedProject?.id === p.id && (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--color-ink-muted)]" />
                     )}
                   </>
                 )}
@@ -214,8 +214,8 @@ export function OnboardingFlow() {
 
           {step === 'team' && selectedProject && (
             <div className="space-y-4">
-              <div className="text-[13px] text-zinc-400">
-                Project <code className="mono text-zinc-200">{selectedProject.name}</code>. Choose a
+              <div className="text-[13px] text-[var(--color-ink-muted)]">
+                Project <code className="mono text-[var(--color-ink)]">{selectedProject.name}</code>. Choose a
                 team — this picks the default sprint board.
               </div>
               <SearchInput
@@ -231,9 +231,9 @@ export function OnboardingFlow() {
                 emptyLabel={teamFilter ? 'No matches.' : 'No teams in this project.'}
                 renderItem={(t) => (
                   <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-zinc-100 truncate">{t.name}</div>
+                    <div className="text-[13px] font-medium text-[var(--color-ink)] truncate">{t.name}</div>
                     {t.description && (
-                      <div className="text-[11.5px] text-zinc-500 line-clamp-1">
+                      <div className="text-[11.5px] text-[var(--color-ink-muted)] line-clamp-1">
                         {t.description}
                       </div>
                     )}
@@ -272,7 +272,7 @@ function Field({
 }
 
 function Hint({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11.5px] text-zinc-500 flex items-center gap-1">{children}</p>;
+  return <p className="text-[11.5px] text-[var(--color-ink-muted)] flex items-center gap-1">{children}</p>;
 }
 
 function ErrorRow({ children }: { children: React.ReactNode }) {
@@ -314,7 +314,7 @@ function SearchInput({
   return (
     <div className="space-y-1">
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600 pointer-events-none" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-ink-dim)] pointer-events-none" />
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -323,7 +323,7 @@ function SearchInput({
           autoFocus={autoFocus}
         />
       </div>
-      <div className="text-[11px] text-zinc-600 px-1 mono">
+      <div className="text-[11px] text-[var(--color-ink-dim)] px-1 mono">
         {value ? `${shown} of ${total}` : `${total} total`}
       </div>
     </div>
@@ -345,20 +345,20 @@ function PickerList<T extends { id: string }>({
 }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-4 py-6 text-center text-[12.5px] text-zinc-500">
+      <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] px-4 py-6 text-center text-[12.5px] text-[var(--color-ink-muted)]">
         {emptyLabel}
       </div>
     );
   }
   return (
-    <ul className="max-h-80 overflow-y-auto rounded-md border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.04]">
+    <ul className="max-h-80 overflow-y-auto rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] divide-y divide-[var(--color-hairline)]">
       {items.map((item) => (
         <li key={item.id}>
           <button
             type="button"
             disabled={disabled}
             onClick={() => onSelect(item)}
-            className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04] disabled:opacity-50"
+            className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-overlay-1)] disabled:opacity-50"
           >
             {renderItem(item)}
           </button>

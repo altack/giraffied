@@ -63,7 +63,7 @@ export function WorkLogPanel({
 
   if (q.isLoading) {
     return (
-      <div className="text-[12px] text-zinc-500 flex items-center gap-1.5 py-2">
+      <div className="text-[12px] text-[var(--color-ink-muted)] flex items-center gap-1.5 py-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading work log…
       </div>
     );
@@ -73,7 +73,7 @@ export function WorkLogPanel({
   }
   if (entries.length === 0) {
     return (
-      <div className="rounded-md border border-white/[0.06] bg-white/[0.015] p-4 text-[12px] text-zinc-600 flex items-center gap-2">
+      <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] p-4 text-[12px] text-[var(--color-ink-dim)] flex items-center gap-2">
         <Clock className="h-3.5 w-3.5" /> No time logged yet.
       </div>
     );
@@ -83,12 +83,12 @@ export function WorkLogPanel({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border border-white/[0.06] bg-white/[0.015] p-3">
+      <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] p-3">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--color-ink-muted)]">
             By person
           </div>
-          <div className="mono text-[12px] text-zinc-300">{formatHours(grandTotal)} total</div>
+          <div className="mono text-[12px] text-[var(--color-ink)]">{formatHours(grandTotal)} total</div>
         </div>
         <div className="space-y-1.5">
           {summary.map((row) => {
@@ -99,24 +99,24 @@ export function WorkLogPanel({
                 className="flex items-center gap-2 text-[12px]"
               >
                 <Avatar identity={row.identity} size="sm" />
-                <div className="flex-1 h-1 rounded-full bg-white/[0.04] overflow-hidden">
+                <div className="flex-1 h-1 rounded-full bg-[var(--color-overlay-1)] overflow-hidden">
                   <div
                     className="h-full bg-indigo-400/50"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="mono text-zinc-300 shrink-0">{formatHours(row.total)}</span>
+                <span className="mono text-[var(--color-ink)] shrink-0">{formatHours(row.total)}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="rounded-md border border-white/[0.06] bg-white/[0.015] divide-y divide-white/[0.04]">
+      <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] divide-y divide-[var(--color-hairline)]">
         {entries.map((e, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-2 text-[12px]">
             <Avatar identity={e.by} size="sm" />
-            <span className="text-zinc-200 truncate max-w-[180px]">
+            <span className="text-[var(--color-ink)] truncate max-w-[180px]">
               {e.by?.displayName ?? 'Unknown'}
             </span>
             <span
@@ -127,12 +127,12 @@ export function WorkLogPanel({
               {e.delta >= 0 ? '+' : ''}
               {formatHours(e.delta)}
             </span>
-            <span className="text-zinc-600 shrink-0">→</span>
-            <span className="mono text-zinc-400 shrink-0">
+            <span className="text-[var(--color-ink-dim)] shrink-0">→</span>
+            <span className="mono text-[var(--color-ink-muted)] shrink-0">
               {formatHours(e.runningTotal)}
             </span>
             <span className="flex-1" />
-            <span className="text-[11px] text-zinc-600 mono shrink-0">
+            <span className="text-[11px] text-[var(--color-ink-dim)] mono shrink-0">
               {relativeTime(e.at)}
             </span>
           </div>

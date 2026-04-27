@@ -598,9 +598,9 @@ export function WorkItemModal({
             style={{ backgroundColor: type.dot }}
             aria-hidden
           />
-          <span className="text-zinc-400 shrink-0">{type.label}</span>
-          <span className="text-zinc-700 shrink-0">·</span>
-          <span className="mono text-zinc-500 shrink-0">#{task.workItem.id}</span>
+          <span className="text-[var(--color-ink-muted)] shrink-0">{type.label}</span>
+          <span className="text-[var(--color-ink-dim)] shrink-0">·</span>
+          <span className="mono text-[var(--color-ink-muted)] shrink-0">#{task.workItem.id}</span>
           <CopyLinkButton workItemId={task.workItem.id} />
           <OpenLinkButton workItemId={task.workItem.id} />
         </span>
@@ -658,10 +658,10 @@ export function WorkItemModal({
             rows={1}
             className={cn(
               'w-full field-sizing-content rounded-md px-3 py-2 resize-none',
-              'text-[17px] leading-[1.3] font-medium text-zinc-50',
+              'text-[17px] leading-[1.3] font-medium text-[var(--color-ink)]',
               'bg-transparent border border-transparent',
               !readOnly &&
-                'hover:bg-white/[0.02] hover:border-white/[0.04] focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
+                'hover:bg-[var(--color-overlay-soft)] hover:border-[var(--color-hairline)] focus-visible:outline-none focus-visible:bg-[var(--color-overlay-1)] focus-visible:border-indigo-400/30 focus-visible:ring-2 focus-visible:ring-indigo-400/15',
               readOnly && 'cursor-default',
               'transition-colors duration-150',
             )}
@@ -693,8 +693,8 @@ export function WorkItemModal({
           {(layout.isLoading || full.isLoading) &&
             (!descriptor || !layoutOriginal) && (
               <div className="space-y-2">
-                <div className="h-3 w-28 rounded bg-white/[0.05] animate-pulse" />
-                <div className="h-24 rounded-md bg-white/[0.02] border border-white/[0.06] animate-pulse" />
+                <div className="h-3 w-28 rounded bg-[var(--color-overlay-1)] animate-pulse" />
+                <div className="h-24 rounded-md bg-[var(--color-overlay-soft)] border border-[var(--color-hairline)] animate-pulse" />
               </div>
             )}
           {descriptor &&
@@ -712,7 +712,7 @@ export function WorkItemModal({
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
                 Activity
               </div>
               <Tabs<ActivityTab>
@@ -782,7 +782,7 @@ export function WorkItemModal({
           </div>
         </form>
 
-        <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-white/[0.06] bg-white/[0.015] px-4 py-4 space-y-4">
+        <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] px-4 py-4 space-y-4">
           <SidebarField label="Status">
             <PicklistPicker
               value={draft.state}
@@ -952,7 +952,7 @@ export function WorkItemModal({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
         {label}
       </div>
       {children}
@@ -1002,8 +1002,8 @@ function ReadOnlyBanner({
           rel="noopener noreferrer"
           className={cn(
             'inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium shrink-0',
-            'bg-white/[0.06] border border-white/[0.08] text-zinc-100',
-            'hover:bg-white/[0.10] hover:border-white/[0.14]',
+            'bg-[var(--color-overlay-1)] border border-[var(--color-hairline-strong)] text-[var(--color-ink)]',
+            'hover:bg-[var(--color-overlay-2)] hover:border-[var(--color-hairline-loud)]',
             'transition-colors duration-100',
           )}
         >
@@ -1022,7 +1022,7 @@ function CreatedByRow({ identity }: { identity: AdoIdentity | null }) {
     <div
       className={cn(
         'w-full h-8 flex items-center gap-2 rounded-md px-2.5 text-[13px]',
-        'bg-white/[0.02] border border-white/[0.06] text-zinc-300',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline)] text-[var(--color-ink)]',
       )}
     >
       <Avatar identity={identity ?? undefined} size="sm" />
@@ -1067,7 +1067,7 @@ function LayoutGroup({
   return (
     <div className="space-y-3">
       {showHeader && (
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
           {group.label}
         </div>
       )}
@@ -1088,7 +1088,7 @@ function LayoutGroup({
 }
 
 function SidebarDivider() {
-  return <div className="h-px bg-white/[0.06] -mx-4" />;
+  return <div className="h-px bg-[var(--color-hairline)] -mx-4" />;
 }
 
 /** Collapsible "MORE FIELDS (N)" section. Collapsed by default — the whole
@@ -1109,8 +1109,8 @@ function MoreFieldsSection({
         onClick={() => setOpen((o) => !o)}
         className={cn(
           'w-full flex items-center gap-1.5 py-1',
-          'text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500',
-          'hover:text-zinc-300 transition-colors',
+          'text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]',
+          'hover:text-[var(--color-ink)] transition-colors',
         )}
       >
         <ChevronRight
@@ -1120,7 +1120,7 @@ function MoreFieldsSection({
           )}
         />
         <span>More fields</span>
-        <span className="mono text-zinc-600">({count})</span>
+        <span className="mono text-[var(--color-ink-dim)]">({count})</span>
       </button>
       {open && <div className="mt-3">{children}</div>}
     </div>
@@ -1142,14 +1142,14 @@ function SidebarLoadingBlock() {
 
 function LoadingRow() {
   return (
-    <div className="h-8 rounded-md bg-white/[0.02] border border-white/[0.06] animate-pulse" />
+    <div className="h-8 rounded-md bg-[var(--color-overlay-soft)] border border-[var(--color-hairline)] animate-pulse" />
   );
 }
 
 function SidebarField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
         {label}
       </div>
       {children}
@@ -1197,20 +1197,20 @@ function TagsEditor({
     <div
       className={cn(
         'flex flex-wrap items-center gap-1 min-h-[32px] rounded-md px-1.5 py-1',
-        'bg-white/[0.03] border border-white/[0.08]',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)]',
         !readOnly &&
           'focus-within:border-indigo-400/40 focus-within:ring-2 focus-within:ring-indigo-400/15',
         'transition-colors duration-150',
       )}
     >
       {tags.length === 0 && readOnly && (
-        <span className="text-[12px] text-zinc-600 px-1">No tags</span>
+        <span className="text-[12px] text-[var(--color-ink-dim)] px-1">No tags</span>
       )}
       {tags.map((tag) => (
         <span
           key={tag}
           className={cn(
-            'inline-flex items-center gap-0.5 rounded bg-white/[0.06] py-0.5 text-[11px] text-zinc-200 lit-top',
+            'inline-flex items-center gap-0.5 rounded bg-[var(--color-overlay-1)] py-0.5 text-[11px] text-[var(--color-ink)] lit-top',
             // Extra right padding when the × button isn't there, so the label
             // doesn't sit flush against the rounded edge.
             readOnly ? 'px-2' : 'pl-2 pr-0.5',
@@ -1229,7 +1229,7 @@ function TagsEditor({
                 onChange(tags.filter((t) => t !== tag));
               }}
               aria-label={`Remove tag ${tag}`}
-              className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
+              className="inline-flex items-center justify-center h-4 w-4 rounded text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-2)] transition-colors"
             >
               <X className="h-3 w-3" />
             </button>
@@ -1249,7 +1249,7 @@ function TagsEditor({
             }
           }}
           placeholder={tags.length === 0 ? 'Add tag…' : ''}
-          className="flex-1 min-w-[80px] bg-transparent text-[12px] text-zinc-100 placeholder:text-zinc-600 outline-none px-1 py-0.5"
+          className="flex-1 min-w-[80px] bg-transparent text-[12px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-dim)] outline-none px-1 py-0.5"
         />
       )}
     </div>
@@ -1339,7 +1339,7 @@ function TimeTracking({
   return (
     <div className="space-y-2">
       <form onSubmit={handleAdd} className="relative">
-        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600 text-[13px] mono">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-dim)] text-[13px] mono">
           +
         </span>
         <Input
@@ -1361,7 +1361,7 @@ function TimeTracking({
           placeholder="0"
           className="h-8 pl-6 pr-14 text-[13px] mono"
         />
-        <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 text-zinc-600 text-[11px]">
+        <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 text-[var(--color-ink-dim)] text-[11px]">
           h
         </span>
         <button
@@ -1372,9 +1372,9 @@ function TimeTracking({
           className={cn(
             'absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center',
             'h-6 w-7 rounded',
-            'bg-white/[0.08] text-zinc-100 lit-top',
-            'hover:bg-white/[0.14] hover:text-white',
-            'disabled:opacity-40 disabled:hover:bg-white/[0.08]',
+            'bg-[var(--color-overlay-2)] text-[var(--color-ink)] lit-top',
+            'hover:bg-[var(--color-overlay-loud)]',
+            'disabled:opacity-40 disabled:hover:bg-[var(--color-overlay-2)]',
             'transition-colors',
           )}
         >

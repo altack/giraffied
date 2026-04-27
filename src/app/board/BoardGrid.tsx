@@ -348,7 +348,7 @@ export function BoardGrid({
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="flex-1 overflow-auto">
         <div className="px-5 pt-3 pb-6 space-y-3" style={{ minWidth: minBoardWidth }}>
-          <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/75 backdrop-blur-lg border-b border-white/[0.05]">
+          <div className="sticky top-0 z-20 -mx-5 px-5 py-2 bg-[var(--color-canvas)]/75 backdrop-blur-lg border-b border-[var(--color-hairline)]">
             <div className="grid gap-3" style={{ gridTemplateColumns }}>
               {columns.map((col) => (
                 <ColumnHeader
@@ -445,10 +445,10 @@ function ColumnHeader({ column, count }: { column: AdoTaskboardColumn; count: nu
   const done = isDoneColumn(column.name);
   return (
     <div className="flex items-center gap-2 px-1">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] pl-1 text-zinc-400">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] pl-1 text-[var(--color-ink-muted)]">
         {column.name}
       </span>
-      <AnimatedCount value={count} className="mono text-[11px] text-zinc-600" />
+      <AnimatedCount value={count} className="mono text-[11px] text-[var(--color-ink-dim)]" />
       {done && count > 0 && <Check className="h-3 w-3 text-emerald-400/80 ml-auto" />}
     </div>
   );
@@ -479,7 +479,7 @@ function ColumnCell({
             'rounded-lg border p-1.5 space-y-1.5 min-h-[96px] transition-colors duration-100',
             snapshot.isDraggingOver
               ? 'bg-indigo-400/[0.05] border-indigo-400/25'
-              : 'border-white/[0.04]',
+              : 'border-[var(--color-hairline)]',
           )}
           // At rest, each cell gets a gentle top-to-bottom bleed of the
           // inherited --lane-hue — the horizontal "lane thread" that ties the

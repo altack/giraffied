@@ -153,7 +153,9 @@ export function DraggableModal({
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 z-40 pointer-events-none bg-black/25',
+          // Theme-aware dim — light mode flips to a much softer wash so the
+          // modal is anchored to the board without smudging the canvas behind it.
+          'fixed inset-0 z-40 pointer-events-none bg-[var(--color-modal-backdrop)]',
           exiting ? 'jfd-backdrop-out' : 'jfd-backdrop-in',
         )}
       />
@@ -163,7 +165,7 @@ export function DraggableModal({
         aria-modal="false"
         className={cn(
           'fixed z-50 flex flex-col',
-          'rounded-xl border border-white/[0.08]',
+          'rounded-xl border border-[var(--color-hairline-strong)]',
           'bg-[var(--color-surface-1)]/95 backdrop-blur-xl',
           'shadow-2xl shadow-black/50',
           'lit-top',
@@ -175,14 +177,14 @@ export function DraggableModal({
         style={style}
       >
       <div
-        className="flex items-center gap-2 pl-3 pr-2 py-2 border-b border-white/[0.06] cursor-grab active:cursor-grabbing select-none touch-none"
+        className="flex items-center gap-2 pl-3 pr-2 py-2 border-b border-[var(--color-hairline)] cursor-grab active:cursor-grabbing select-none touch-none"
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
         onPointerCancel={onHeaderPointerUp}
       >
-        <GripHorizontal className="h-3.5 w-3.5 text-zinc-600 shrink-0" aria-hidden />
-        <div className="flex-1 min-w-0 text-[12px] font-medium text-zinc-300 truncate">
+        <GripHorizontal className="h-3.5 w-3.5 text-[var(--color-ink-dim)] shrink-0" aria-hidden />
+        <div className="flex-1 min-w-0 text-[12px] font-medium text-[var(--color-ink-muted)] truncate">
           {title}
         </div>
         {headerActions}
@@ -190,14 +192,14 @@ export function DraggableModal({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-md cursor-pointer text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md cursor-pointer text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)] transition-colors"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
       {footer && (
-        <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-end gap-2">
+        <div className="border-t border-[var(--color-hairline)] px-4 py-2.5 flex items-center justify-end gap-2">
           {footer}
         </div>
       )}

@@ -41,7 +41,7 @@ export function FieldRow({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
         <span className="truncate">{control.displayName}</span>
         {control.required && (
           <span className="text-red-300/80" aria-label="required">
@@ -49,7 +49,7 @@ export function FieldRow({
           </span>
         )}
         {control.helpText && (
-          <span title={control.helpText} className="cursor-help text-zinc-600">
+          <span title={control.helpText} className="cursor-help text-[var(--color-ink-dim)]">
             <Info className="h-3 w-3" aria-hidden />
           </span>
         )}

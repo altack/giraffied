@@ -18,7 +18,7 @@ export default function App() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[13px] text-zinc-600">
+      <div className="min-h-screen flex items-center justify-center text-[13px] text-[var(--color-ink-dim)]">
         Loading…
       </div>
     );

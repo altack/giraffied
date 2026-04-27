@@ -235,8 +235,8 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
           'disabled:opacity-40 disabled:cursor-not-allowed',
           open
-            ? 'bg-white/[0.07] text-zinc-100'
-            : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100',
+            ? 'bg-[var(--color-overlay-1)] text-[var(--color-ink)]'
+            : 'text-[var(--color-ink-muted)] hover:bg-[var(--color-overlay-soft)] hover:text-[var(--color-ink)]',
         )}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -254,16 +254,16 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
               placement.origin,
             )}
           >
-            <div className="px-3 py-2.5 border-b border-white/[0.06] flex items-baseline justify-between gap-2">
+            <div className="px-3 py-2.5 border-b border-[var(--color-hairline)] flex items-baseline justify-between gap-2">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-muted)]">
                   Sprint time
                 </div>
-                <div className="mono text-[13px] text-zinc-100 leading-tight mt-0.5">
+                <div className="mono text-[13px] text-[var(--color-ink)] leading-tight mt-0.5">
                   {formatHoursHuman(headerTotal)}
                 </div>
               </div>
-              <div className="text-[10.5px] text-zinc-600">
+              <div className="text-[10.5px] text-[var(--color-ink-dim)]">
                 {isLoading
                   ? `${loadedCount}/${trackedIds.length}…`
                   : `${contributors.length} ${contributors.length === 1 ? 'contributor' : 'contributors'}`}
@@ -273,7 +273,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
             {!hasAny ? (
               <EmptyState text="No time logged this sprint yet." />
             ) : isLoading && contributors.length === 0 ? (
-              <div className="flex items-center gap-1.5 px-3 py-5 text-[12px] text-zinc-500">
+              <div className="flex items-center gap-1.5 px-3 py-5 text-[12px] text-[var(--color-ink-muted)]">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Loading contributions…
               </div>
@@ -282,7 +282,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
                 {totalFromUpdates > 0 && (
                   <div className="px-3 pt-3">
                     <div
-                      className="flex h-1.5 w-full overflow-hidden rounded-full bg-white/[0.04]"
+                      className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-overlay-1)]"
                       role="img"
                       aria-label={`Time split across ${contributors.length} contributors`}
                     >
@@ -307,24 +307,24 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
                         className="flex items-center gap-2 px-3 py-1.5 text-[12.5px]"
                       >
                         <Avatar identity={c.identity} size="sm" />
-                        <span className="truncate flex-1 text-zinc-200">{name}</span>
-                        <span className="mono text-zinc-300 shrink-0">
+                        <span className="truncate flex-1 text-[var(--color-ink)]">{name}</span>
+                        <span className="mono text-[var(--color-ink)] shrink-0">
                           {formatHours(c.total)}
                         </span>
-                        <span className="mono text-[11px] text-zinc-600 shrink-0 w-10 text-right">
+                        <span className="mono text-[11px] text-[var(--color-ink-dim)] shrink-0 w-10 text-right">
                           {pctLabel}
                         </span>
                       </li>
                     );
                   })}
                   {contributors.length === 0 && allSettled && !anyError && (
-                    <li className="px-3 py-4 text-[12px] text-zinc-600 text-center">
+                    <li className="px-3 py-4 text-[12px] text-[var(--color-ink-dim)] text-center">
                       No positive contributions recorded.
                     </li>
                   )}
                 </ul>
                 {anyError && (
-                  <div className="px-3 py-2 text-[11px] text-red-300/80 border-t border-white/[0.05]">
+                  <div className="px-3 py-2 text-[11px] text-red-300/80 border-t border-[var(--color-hairline)]">
                     Some work-item histories couldn't be loaded.
                   </div>
                 )}
@@ -339,7 +339,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="px-3 py-6 text-[12px] text-zinc-600 flex items-center gap-2">
+    <div className="px-3 py-6 text-[12px] text-[var(--color-ink-dim)] flex items-center gap-2">
       <Clock className="h-3.5 w-3.5" /> {text}
     </div>
   );

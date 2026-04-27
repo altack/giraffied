@@ -212,7 +212,7 @@ export function CommentsPanel({
       {!readOnly && (
         <div
           id="comments-composer"
-          className="rounded-md border border-white/[0.06] bg-white/[0.02] p-2 space-y-2"
+          className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)] p-2 space-y-2"
         >
           <DescriptionEditor
             value={composer}
@@ -252,7 +252,7 @@ export function CommentsPanel({
       )}
 
       {comments.isLoading ? (
-        <div className="text-[12px] text-zinc-500 flex items-center gap-1.5 py-2">
+        <div className="text-[12px] text-[var(--color-ink-muted)] flex items-center gap-1.5 py-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading comments…
         </div>
       ) : comments.isError ? (
@@ -260,11 +260,11 @@ export function CommentsPanel({
           Couldn't load comments.
         </div>
       ) : ordered.length === 0 ? (
-        <div className="text-[12px] text-zinc-600 py-2">
+        <div className="text-[12px] text-[var(--color-ink-dim)] py-2">
           No comments yet. Start the conversation above.
         </div>
       ) : (
-        <ul className="divide-y divide-white/[0.04] rounded-md border border-white/[0.06] bg-white/[0.015]">
+        <ul className="divide-y divide-[var(--color-hairline)] rounded-md border border-[var(--color-hairline)] bg-[var(--color-overlay-soft)]">
           {ordered.map((c) => (
             <li key={c.commentId}>
               <CommentRow
@@ -336,14 +336,14 @@ function CommentRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 min-w-0">
-          <span className="text-[12.5px] font-medium text-zinc-200 truncate max-w-[220px]">
+          <span className="text-[12.5px] font-medium text-[var(--color-ink)] truncate max-w-[220px]">
             {mine ? 'You' : author?.displayName ?? 'Someone'}
           </span>
-          <span className="text-[11px] text-zinc-600 mono">
+          <span className="text-[11px] text-[var(--color-ink-muted)] mono">
             {relativeTime(comment.createdDate)}
           </span>
           {edited && (
-            <span className="text-[11px] text-zinc-700 italic">edited</span>
+            <span className="text-[11px] text-[var(--color-ink-dim)] italic">edited</span>
           )}
           {!editing && mine && (
             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-100">
@@ -371,7 +371,7 @@ function CommentRow({
         ) : (
           <RichTextRenderer
             html={comment.text}
-            className="jfd-comment-body mt-1 text-[13px] leading-[1.5] text-zinc-200"
+            className="jfd-comment-body mt-1 text-[13px] leading-[1.5] text-[var(--color-ink)]"
           />
         )}
       </div>
@@ -443,7 +443,7 @@ function RowAction({
       onClick={onClick}
       className={cn(
         'inline-flex items-center gap-1 rounded px-1.5 h-5 text-[10.5px]',
-        'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.05]',
+        'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]',
         'transition-colors duration-100',
         variant === 'danger' && 'hover:text-red-300 hover:bg-red-500/10',
       )}

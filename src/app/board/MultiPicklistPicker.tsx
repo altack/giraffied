@@ -132,18 +132,18 @@ export function MultiPicklistPicker({
     <div
       className={cn(
         'flex flex-wrap items-center gap-1 min-h-[32px] rounded-md px-1.5 py-1',
-        'bg-white/[0.03] border border-white/[0.08]',
+        'bg-[var(--color-overlay-soft)] border border-[var(--color-hairline-strong)]',
         'transition-colors duration-150',
       )}
     >
       {values.length === 0 && (
-        <span className="text-[12px] text-zinc-600 px-1">{placeholder}</span>
+        <span className="text-[12px] text-[var(--color-ink-dim)] px-1">{placeholder}</span>
       )}
       {values.map((v) => (
         <span
           key={v}
           className={cn(
-            'inline-flex items-center gap-0.5 rounded bg-white/[0.06] py-0.5 text-[11px] text-zinc-200 lit-top',
+            'inline-flex items-center gap-0.5 rounded bg-[var(--color-overlay-1)] py-0.5 text-[11px] text-[var(--color-ink)] lit-top',
             // Even right padding when the × button isn't rendered, so the label
             // doesn't sit flush against the rounded edge.
             disabled ? 'px-2' : 'pl-2 pr-0.5',
@@ -157,7 +157,7 @@ export function MultiPicklistPicker({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => remove(v)}
               aria-label={`Remove ${v}`}
-              className="inline-flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors"
+              className="inline-flex items-center justify-center h-4 w-4 rounded text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-2)] transition-colors"
             >
               <X className="h-3 w-3" />
             </button>
@@ -172,7 +172,7 @@ export function MultiPicklistPicker({
           aria-label="Add value"
           className={cn(
             'inline-flex ml-auto items-center justify-center h-5 w-5 rounded',
-            'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06] transition-colors',
+            'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)] transition-colors',
           )}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -190,7 +190,7 @@ export function MultiPicklistPicker({
               placement.origin,
             )}
           >
-            <div className="p-1.5 border-b border-white/[0.06]">
+            <div className="p-1.5 border-b border-[var(--color-hairline)]">
               <Input
                 autoFocus
                 value={filter}
@@ -205,13 +205,13 @@ export function MultiPicklistPicker({
                   key={opt}
                   type="button"
                   onClick={() => add(opt)}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-zinc-200 hover:bg-white/[0.04]"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]"
                 >
                   <span className="flex-1 text-left truncate">{opt}</span>
                 </button>
               ))}
               {remaining.length === 0 && (
-                <div className="px-2.5 py-2 text-[12px] text-zinc-600">
+                <div className="px-2.5 py-2 text-[12px] text-[var(--color-ink-dim)]">
                   {values.length === options.length ? 'All added.' : 'No matches.'}
                 </div>
               )}

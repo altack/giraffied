@@ -99,7 +99,7 @@ export function ExternalWorkItemModalLoader({
         className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-canvas)]/40 backdrop-blur-sm"
         onClick={onClose}
       >
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--color-surface-2)]/90 backdrop-blur-xl border border-white/[0.08] lit-top text-[12.5px] text-zinc-300">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--color-surface-2)]/90 backdrop-blur-xl border border-[var(--color-hairline-strong)] lit-top text-[12.5px] text-[var(--color-ink)]">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Loading work item…
         </div>

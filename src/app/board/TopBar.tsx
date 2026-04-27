@@ -5,6 +5,7 @@ import type { TaskboardData } from '@/ado/hooks/useTaskboard';
 import { ContextSwitcher } from './ContextSwitcher';
 import { OverallTracking } from './OverallTracking';
 import { AssigneeFilter } from './AssigneeFilter';
+import { ThemeMenu } from './ThemeMenu';
 import type { BoardAssignee } from './assigneesOnBoard';
 import { SearchTrigger } from './search/SearchTrigger';
 
@@ -44,18 +45,18 @@ export function TopBar({
   const range = formatRange(iteration);
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-5 h-11 bg-[var(--color-canvas)]/70 backdrop-blur-lg border-b border-white/[0.05]">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-5 h-11 bg-[var(--color-canvas)]/70 backdrop-blur-lg border-b border-[var(--color-hairline)]">
       <div className="flex items-center gap-3 min-w-0">
         <span className="text-[13px] font-semibold tracking-tight">
           <span className="jfd-wordmark">Giraffied</span>
           {' 🦒'}
         </span>
         <Sep />
-        <span className="text-[13px] text-zinc-100 font-medium truncate">
+        <span className="text-[13px] text-[var(--color-ink)] font-medium truncate">
           {iteration?.name ?? 'No current iteration'}
         </span>
         {range && (
-          <span className="mono text-[11px] text-zinc-500 shrink-0">{range}</span>
+          <span className="mono text-[11px] text-[var(--color-ink-muted)] shrink-0">{range}</span>
         )}
         <Sep />
         <ContextSwitcher />
@@ -91,11 +92,12 @@ export function TopBar({
             selectedKey={assigneeFilter}
             onSelect={onAssigneeFilter}
         />
+        <ThemeMenu />
       </div>
     </header>
   );
 }
 
 function Sep() {
-  return <span className="text-zinc-800 select-none">·</span>;
+  return <span className="text-[var(--color-ink-dim)] opacity-50 select-none">·</span>;
 }

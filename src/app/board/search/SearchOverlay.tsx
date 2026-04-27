@@ -235,7 +235,7 @@ export function SearchOverlay({
         className={cn(
           'relative w-full max-w-[640px] overflow-hidden rounded-2xl',
           'bg-[var(--color-surface-2)]/60 backdrop-blur-2xl',
-          'border border-white/[0.09] lit-top',
+          'border border-[var(--color-hairline-strong)] lit-top',
           // Ambient indigo glow outside the panel + deep drop shadow below.
           'shadow-[0_28px_80px_-16px_rgb(0_0_0/0.7),0_0_0_1px_rgb(129_140_248/0.06),0_0_60px_-10px_rgb(129_140_248/0.18)]',
           'flex flex-col',
@@ -245,7 +245,7 @@ export function SearchOverlay({
       >
         {/* Input row */}
         <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
-          <Search className="h-4 w-4 text-zinc-500 shrink-0" aria-hidden />
+          <Search className="h-4 w-4 text-[var(--color-ink-muted)] shrink-0" aria-hidden />
           <input
             ref={inputRef}
             value={query}
@@ -257,7 +257,7 @@ export function SearchOverlay({
             aria-label="Search query"
             className={cn(
               'flex-1 bg-transparent border-0 outline-none',
-              'text-[15px] text-zinc-50 placeholder:text-zinc-600',
+              'text-[15px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-dim)]',
               'py-1',
             )}
           />
@@ -267,7 +267,7 @@ export function SearchOverlay({
             aria-label="Close search"
             className={cn(
               'inline-flex h-6 w-6 items-center justify-center rounded',
-              'text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06]',
+              'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-1)]',
               'transition-colors duration-100',
             )}
           >
@@ -280,7 +280,7 @@ export function SearchOverlay({
             at rest; the indicator provides the active indigo fill. */}
         <div
           ref={pillBarRef}
-          className="relative flex items-center gap-1 px-3.5 pb-2.5 border-b border-white/[0.06]"
+          className="relative flex items-center gap-1 px-3.5 pb-2.5 border-b border-[var(--color-hairline)]"
         >
           {pillIndicator && (
             <div
@@ -314,14 +314,14 @@ export function SearchOverlay({
                   'transition-colors duration-150',
                   active
                     ? 'text-indigo-100'
-                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]',
+                    : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-overlay-soft)]',
                 )}
               >
                 {SCOPE_LABELS[s].pill}
               </button>
             );
           })}
-          <div className="ml-auto mono text-[10px] text-zinc-600 hidden sm:block">
+          <div className="ml-auto mono text-[10px] text-[var(--color-ink-dim)] hidden sm:block">
             ↑↓ · Enter · Esc
           </div>
         </div>
@@ -374,7 +374,7 @@ export function SearchOverlay({
 
     if (isLoading || isTyping) {
       return (
-        <div className="flex items-center justify-center gap-2 py-10 text-[12.5px] text-zinc-500">
+        <div className="flex items-center justify-center gap-2 py-10 text-[12.5px] text-[var(--color-ink-muted)]">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Searching…
         </div>
@@ -411,8 +411,8 @@ export function SearchOverlay({
 function EmptyHint({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="p-8 text-center space-y-1">
-      <div className="text-[12.5px] text-zinc-400">{title}</div>
-      {subtitle && <div className="text-[11.5px] text-zinc-600">{subtitle}</div>}
+      <div className="text-[12.5px] text-[var(--color-ink-muted)]">{title}</div>
+      {subtitle && <div className="text-[11.5px] text-[var(--color-ink-dim)]">{subtitle}</div>}
     </div>
   );
 }
@@ -448,7 +448,7 @@ function ResultRow({
         className={cn(
           'w-full text-left px-3.5 py-2 flex items-start gap-3',
           'transition-colors duration-75',
-          active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]',
+          active ? 'bg-[var(--color-overlay-1)]' : 'hover:bg-[var(--color-overlay-soft)]',
         )}
       >
         <span
@@ -457,21 +457,21 @@ function ResultRow({
           aria-hidden
         />
         <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-            <span className="shrink-0 text-zinc-400">{type.label}</span>
-            <span className="text-zinc-700">·</span>
-            <span className="mono text-zinc-500 shrink-0">#{workItem.id}</span>
+          <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-ink-muted)]">
+            <span className="shrink-0 text-[var(--color-ink-muted)]">{type.label}</span>
+            <span className="text-[var(--color-ink-dim)]">·</span>
+            <span className="mono text-[var(--color-ink-muted)] shrink-0">#{workItem.id}</span>
             {showProject && teamProject && (
               <>
-                <span className="text-zinc-700">·</span>
-                <span className="truncate text-zinc-500">{teamProject}</span>
+                <span className="text-[var(--color-ink-dim)]">·</span>
+                <span className="truncate text-[var(--color-ink-muted)]">{teamProject}</span>
               </>
             )}
           </div>
           <div
             className={cn(
-              'text-[13px] leading-snug line-clamp-2 break-words',
-              active ? 'text-zinc-50' : 'text-zinc-100',
+              'text-[13px] leading-snug line-clamp-2 break-words text-[var(--color-ink)]',
+              active && 'font-medium',
             )}
           >
             {f['System.Title'] || '(untitled)'}
@@ -505,8 +505,8 @@ function SearchFooter() {
       className={cn(
         'flex items-center justify-between gap-2',
         'px-3.5 py-2',
-        'border-t border-white/[0.06]',
-        'bg-white/[0.015]',
+        'border-t border-[var(--color-hairline)]',
+        'bg-[var(--color-overlay-soft)]',
       )}
     >
       <div className="flex items-center gap-1.5 min-w-0">
@@ -514,8 +514,8 @@ function SearchFooter() {
         <span className="jfd-wordmark text-[11.5px] font-semibold tracking-tight">
           Giraffied
         </span>
-        <span className="text-zinc-700 select-none">·</span>
-        <span className="mono text-[10.5px] text-zinc-600">© {year}</span>
+        <span className="text-[var(--color-ink-dim)] select-none">·</span>
+        <span className="mono text-[10.5px] text-[var(--color-ink-dim)]">© {year}</span>
       </div>
     </div>
   );
