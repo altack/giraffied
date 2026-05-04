@@ -9,6 +9,15 @@
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?|#|$)/i;
 const VIDEO_EXT_RE = /\.(mp4|webm|mov|ogv|m4v)(\?|#|$)/i;
 const ATTACHMENT_PATH_RE = /\/_apis\/wit\/attachments\//i;
+// Absolute-URL form. Used by the rich-text renderer + Tiptap nodeView to
+// decide whether to PAT-fetch the binary and swap to a blob: URL — the
+// reliable path that survives an expired dev.azure.com session cookie.
+const ADO_ATTACHMENT_URL_RE =
+  /^https:\/\/dev\.azure\.com\/[^/]+\/.*\/_apis\/wit\/attachments\//i;
+
+export function isAdoAttachmentUrl(url: string | null | undefined): url is string {
+  return !!url && ADO_ATTACHMENT_URL_RE.test(url);
+}
 
 /** Find every ADO attachment URL referenced from the HTML — both `<img src>`
  *  and `<a href>` (videos render as anchors that the renderer upgrades to

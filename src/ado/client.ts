@@ -76,6 +76,51 @@ export async function ado<T>(opts: AdoRequestOptions): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Fetch an absolute ADO URL with the stored PAT and return its body as a Blob.
+ *
+ *  Used to load attachment images/videos embedded in rich-text fields
+ *  *without* relying on the user's dev.azure.com session cookie — which is
+ *  the path `<img>` and `<video>` elements take by default and which fails
+ *  silently whenever the cookie has expired (the symptom: a broken image
+ *  in the description even though everything else in the modal works).
+ *
+ *  **`credentials: 'omit'` is load-bearing.** When the user has stale
+ *  dev.azure.com cookies in this profile (expired, partial, or for a
+ *  different tenant) ADO short-circuits the attachment endpoint with a
+ *  302 → `spsprodweu2.vssps.visualstudio.com/_signin?…` *before* it
+ *  evaluates the `Authorization` header. fetch follows the redirect, the
+ *  sign-in page returns 500, and Chromium starts throttling the redirect
+ *  chain. Telling fetch not to send cookies at all forces ADO to
+ *  authenticate via the PAT we put in the header — which is the path
+ *  every other API call in the app already takes.
+ *
+ *  Caller is responsible for `URL.createObjectURL` / `URL.revokeObjectURL`
+ *  lifecycle. */
+export async function fetchAuthedBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+  const { pat } = useSettings.getState();
+  if (!pat) throw new Error('Not authenticated');
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Basic ${btoa(':' + pat)}`,
+      // image/* covers png/jpg/webp/etc; video/* covers mp4/webm/etc.
+      // application/octet-stream is the catch-all ADO falls back to.
+      Accept: 'image/*,video/*,application/octet-stream;q=0.9,*/*;q=0.5',
+    },
+    credentials: 'omit',
+    // Surface server errors as our own AdoError instead of fetch silently
+    // following a 302 → sign-in chain that ends in throttling. We only
+    // expect 200s on this endpoint when authenticated correctly.
+    redirect: 'follow',
+    signal,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new AdoError(res.status, res.statusText, body);
+  }
+  return res.blob();
+}
+
 /**
  * Fetches a paginated Azure DevOps collection endpoint to exhaustion,
  * following the `x-ms-continuationtoken` response header. Returns the
