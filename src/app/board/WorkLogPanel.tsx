@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Clock, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { listWorkItemUpdates } from '@/ado/endpoints';
+import { useCurrentIteration } from '@/ado/hooks/useCurrentIteration';
 import type { AdoIdentity, AdoWorkItemUpdate } from '@/ado/types';
 import { Avatar } from './Avatar';
 import { formatHours, relativeTime } from './timeFormat';
@@ -21,7 +22,13 @@ function identityKey(i: AdoIdentity | undefined): string {
 /** ADO doesn't have first-class time-log entries — we reconstruct a log from the
  *  work-item revision feed by diffing `Microsoft.VSTS.Scheduling.CompletedWork`
  *  between consecutive revs. This is the same data the native "History" tab pulls
- *  from, just filtered to the field we care about. */
+ *  from, just filtered to the field we care about.
+ *
+ *  Scope: when the team has a current iteration, updates dated *before* its
+ *  start are dropped — work items routinely carry over from a prior sprint
+ *  with hours already on them, and the "By person" tally is meant to reflect
+ *  effort *this sprint*. Running total resets to 0 at sprint start for the
+ *  same reason (so the timeline column tracks in-sprint accumulation). */
 export function WorkLogPanel({
   workItemId,
   projectId,
@@ -31,6 +38,8 @@ export function WorkLogPanel({
   projectId: string | null;
   enabled: boolean;
 }) {
+  const iteration = useCurrentIteration();
+  const sprintStart = iteration.data?.attributes.startDate ?? null;
   const q = useQuery({
     queryKey: ['workitem-updates', projectId, workItemId],
     queryFn: () => listWorkItemUpdates(projectId!, workItemId),
@@ -44,14 +53,20 @@ export function WorkLogPanel({
     const totals = new Map<string, { identity: AdoIdentity | undefined; total: number }>();
     let grandTotal = 0;
     for (const upd of q.data ?? []) {
+      if (sprintStart && upd.revisedDate < sprintStart) continue;
       const ch = upd.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'];
       if (!ch) continue;
       const oldV = numOrZero(ch.oldValue);
       const newV = numOrZero(ch.newValue);
       const delta = round(newV - oldV);
       if (delta === 0) continue;
-      grandTotal = newV;
-      entries.push({ by: upd.revisedBy, at: upd.revisedDate, delta, runningTotal: newV });
+      grandTotal = round(grandTotal + delta);
+      entries.push({
+        by: upd.revisedBy,
+        at: upd.revisedDate,
+        delta,
+        runningTotal: grandTotal,
+      });
       const key = identityKey(upd.revisedBy);
       const cur = totals.get(key) ?? { identity: upd.revisedBy, total: 0 };
       cur.total = round(cur.total + delta);
@@ -59,7 +74,7 @@ export function WorkLogPanel({
     }
     entries.reverse();
     return { entries, totals, grandTotal };
-  }, [q.data]);
+  }, [q.data, sprintStart]);
 
   if (q.isLoading) {
     return (

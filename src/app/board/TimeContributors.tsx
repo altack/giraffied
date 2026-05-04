@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { listWorkItemUpdates } from '@/ado/endpoints';
+import { useCurrentIteration } from '@/ado/hooks/useCurrentIteration';
 import type { AdoIdentity } from '@/ado/types';
 import { useTheme } from '@/state/theme.store';
 import { Avatar } from './Avatar';
@@ -38,10 +39,13 @@ function round(n: number): number {
  *
  *  Accounting matches the Work Log "By person" card: signed deltas are summed
  *  per author (so a correction by the same user reduces their own total) and
- *  the grand total is the last observed `CompletedWork` value, which equals
- *  the field on the work item. A contributor whose net contribution is zero
- *  or negative (rare — only happens when someone only ever logged negative
- *  corrections) is dropped from the bar. */
+ *  the grand total is the sum of the in-sprint deltas. A contributor whose
+ *  net contribution is zero or negative (rare — only happens when someone
+ *  only ever logged negative corrections) is dropped from the bar.
+ *
+ *  Scope: revisions dated before the current iteration's start are skipped,
+ *  so a card that carried over from a prior sprint with N hours already on
+ *  it shows only the *delta* logged this sprint here. */
 export function TimeContributors({
   workItemId,
   projectId,
@@ -52,6 +56,8 @@ export function TimeContributors({
   enabled: boolean;
 }) {
   const theme = useTheme((s) => s.theme);
+  const iteration = useCurrentIteration();
+  const sprintStart = iteration.data?.attributes.startDate ?? null;
   const q = useQuery({
     queryKey: ['workitem-updates', projectId, workItemId],
     queryFn: () => listWorkItemUpdates(projectId!, workItemId),
@@ -64,12 +70,12 @@ export function TimeContributors({
     const byKey = new Map<string, { identity: AdoIdentity | undefined; total: number }>();
     let grand = 0;
     for (const upd of q.data ?? []) {
+      if (sprintStart && upd.revisedDate < sprintStart) continue;
       const ch = upd.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'];
       if (!ch) continue;
-      const newV = numOrZero(ch.newValue);
-      const delta = round(newV - numOrZero(ch.oldValue));
+      const delta = round(numOrZero(ch.newValue) - numOrZero(ch.oldValue));
       if (delta === 0) continue;
-      grand = newV;
+      grand = round(grand + delta);
       const k = identityKey(upd.revisedBy);
       const cur = byKey.get(k) ?? { identity: upd.revisedBy, total: 0 };
       cur.total = round(cur.total + delta);
@@ -86,7 +92,7 @@ export function TimeContributors({
       }))
       .sort((a, b) => b.total - a.total);
     return { contributors: list, grandTotal: grand };
-  }, [q.data, theme]);
+  }, [q.data, theme, sprintStart]);
 
   if (q.isLoading) {
     return (

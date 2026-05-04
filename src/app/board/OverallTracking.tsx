@@ -12,6 +12,7 @@ import { useQueries } from '@tanstack/react-query';
 import type { TaskboardData } from '@/ado/hooks/useTaskboard';
 import type { AdoIdentity, AdoWorkItem } from '@/ado/types';
 import { listWorkItemUpdates } from '@/ado/endpoints';
+import { useCurrentIteration } from '@/ado/hooks/useCurrentIteration';
 import { useSettings } from '@/state/settings.store';
 import { useTheme } from '@/state/theme.store';
 import { cn } from '@/lib/cn';
@@ -46,38 +47,28 @@ function round(n: number): number {
 
 /** Overall sprint time tracking summary.
  *
- *  The button label is a fast total: sum of every card's current
- *  `CompletedWork`, read straight from the already-loaded board. No network.
- *
- *  The popover breakdown is the accurate one: on first open we fan out
- *  /updates per card with `CompletedWork > 0`, net signed deltas per
- *  `revisedBy`, and aggregate across the whole sprint. Same accounting the
- *  modal's Work Log "By person" card uses. Queries share the
+ *  The popover fans out /updates per card with `CompletedWork > 0`, drops
+ *  revisions dated before the current iteration's start (so carryover
+ *  hours from a prior sprint don't pollute the tally), nets signed deltas
+ *  per `revisedBy`, and aggregates across the whole sprint. Same accounting
+ *  the modal's Work Log "By person" card uses. Queries share the
  *  ['workitem-updates', projectId, id] key with the modal, so opening a card
- *  first warms this view for free; and once fetched they stay fresh for 60s. */
+ *  first warms this view for free; and once fetched they stay fresh for 60s.
+ *
+ *  We deliberately don't show a "fast total" on the trigger — the only
+ *  cheap signal available without /updates is each card's current
+ *  CompletedWork field, which is *all-time* (carryover included) and would
+ *  contradict the sprint-scoped breakdown the popover renders. The trigger
+ *  is a passive entry point; the number lives behind the click. */
 export function OverallTracking({ board }: { board: TaskboardData | undefined }) {
   const projectId = useSettings((s) => s.projectId);
   const theme = useTheme((s) => s.theme);
+  const iteration = useCurrentIteration();
+  const sprintStart = iteration.data?.attributes.startDate ?? null;
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
-
-  // Fast total from current CompletedWork values; always available, no fetch.
-  const totalHoursFast = useMemo(() => {
-    if (!board) return 0;
-    let sum = 0;
-    const add = (wi: AdoWorkItem) => {
-      const h = numOrZero(wi.fields['Microsoft.VSTS.Scheduling.CompletedWork']);
-      if (h > 0) sum = round(sum + h);
-    };
-    for (const lane of board.swimlanes) {
-      add(lane.row);
-      for (const t of lane.tasks) add(t.workItem);
-    }
-    for (const t of board.unparented) add(t.workItem);
-    return sum;
-  }, [board]);
 
   // IDs worth fetching /updates for — cards with positive current CompletedWork.
   // Items with 0 current hours and no log history wouldn't contribute; items
@@ -114,6 +105,8 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
 
   // Same accounting as WorkLogPanel: sum signed deltas per revisedBy. Filter
   // out contributors whose net is ≤ 0 so negative-only actors don't render.
+  // Skip revisions dated before sprintStart — those entries belong to a
+  // prior iteration that the card carried hours over from.
   const { contributors, totalFromUpdates } = useMemo(() => {
     const byKey = new Map<
       string,
@@ -123,6 +116,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
     for (const r of results) {
       if (!r.data) continue;
       for (const upd of r.data) {
+        if (sprintStart && upd.revisedDate < sprintStart) continue;
         const ch = upd.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'];
         if (!ch) continue;
         const delta = round(numOrZero(ch.newValue) - numOrZero(ch.oldValue));
@@ -150,7 +144,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
     // per render, the iteration yields the same values until a query settles.
     // The memo recomputes on each render but the work is O(updates) and cheap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.map((r) => r.dataUpdatedAt).join(','), theme]);
+  }, [results.map((r) => r.dataUpdatedAt).join(','), theme, sprintStart]);
 
   function toggle() {
     if (!open && btnRef.current) {
@@ -213,11 +207,26 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
       })()
     : null;
 
-  const hasAny = totalHoursFast > 0;
-  // Prefer the updates-reconstructed total in the header once everything is
-  // loaded — it should equal the fast total but is authoritative for the
-  // accounting shown below. Fall back to the fast total otherwise.
-  const headerTotal = allSettled && trackedIds.length > 0 ? totalFromUpdates : totalHoursFast;
+  // hasAny gates the popover's empty-state copy. Before the popover is
+  // opened the queries are disabled, so we use trackedIds (cards with any
+  // current CompletedWork) as the cheap "is there anything to show" probe.
+  // Once queries are settled, fall through to the actual computed total —
+  // a card with `CompletedWork > 0` can still net to zero in-sprint if all
+  // its hours were logged before the iteration started.
+  const hasAny = trackedIds.length > 0;
+  // totalFromUpdates grows monotonically as queries resolve, so showing it
+  // mid-load is fine — the side label doubles as a "X/Y loaded" progress
+  // indicator. Once allSettled it's the authoritative sprint-scoped total.
+  const headerTotal = totalFromUpdates;
+  const triggerTitle = !board
+    ? 'Loading sprint…'
+    : !hasAny
+      ? 'No time tracked on this sprint'
+      : allSettled
+        ? totalFromUpdates > 0
+          ? `${formatHoursHuman(totalFromUpdates)} logged this sprint`
+          : 'No time logged this sprint'
+        : 'Sprint time — click to view breakdown';
 
   return (
     <div className="relative">
@@ -226,11 +235,7 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
         type="button"
         onClick={toggle}
         disabled={!board}
-        title={
-          hasAny
-            ? `${formatHoursHuman(totalHoursFast)} logged this sprint`
-            : 'No time logged this sprint'
-        }
+        title={triggerTitle}
         className={cn(
           'inline-flex items-center gap-1.5 h-7 px-2 rounded-md',
           'text-[12px] transition-colors duration-150',
@@ -274,6 +279,12 @@ export function OverallTracking({ board }: { board: TaskboardData | undefined })
 
             {!hasAny ? (
               <EmptyState text="No time logged this sprint yet." />
+            ) : allSettled && totalFromUpdates === 0 ? (
+              // Cards have CompletedWork > 0 (so they passed the trackedIds
+              // gate) but all of those hours were logged before the sprint
+              // started — i.e. carryover. Surface this explicitly instead
+              // of leaving the user staring at an empty contributors list.
+              <EmptyState text="No time logged in this sprint (carryover only)." />
             ) : isLoading && contributors.length === 0 ? (
               <div className="flex items-center gap-1.5 px-3 py-5 text-[12px] text-[var(--color-ink-muted)]">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
