@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -9,25 +8,51 @@ import {
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import {
-  fetchAndCacheBlob,
-  getCachedBlobUrl,
-  isCookieAuthKnownBroken,
-  markCookieAuthBroken,
-} from './adoImageAuth';
+import { useAdoAttachments } from './useAdoAttachments';
 import { isAdoAttachmentUrl } from './attachments';
 import { convertMarkdownImages } from './markdownImg';
 
-// Anchors pointing at these extensions are upgraded to inline <video controls>
-// after the HTML mounts. ADO doesn't emit <video> from Trix; it stores video
-// attachments as plain links. Keeping this list narrow so we don't accidentally
-// rewrite anchors that *look* like videos but link elsewhere.
+// ADO stores video attachments as plain anchors; we promote them to
+// <video controls> at render time.
 const VIDEO_RE = /\.(mp4|webm|mov|ogv|m4v)(\?|#|$)/i;
-
 
 type Media =
   | { kind: 'image'; src: string; alt?: string }
   | { kind: 'video'; src: string };
+
+function preprocessHtml(html: string, resolved: Map<string, string>): string {
+  if (!html) return html;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  doc.body.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
+    const href = a.getAttribute('href') ?? '';
+    if (!VIDEO_RE.test(href)) return;
+    const video = doc.createElement('video');
+    video.src = href;
+    video.controls = true;
+    video.preload = 'metadata';
+    video.className = 'jfd-rt-video';
+    a.replaceWith(video);
+  });
+
+  doc.body
+    .querySelectorAll<HTMLImageElement | HTMLVideoElement>('img, video')
+    .forEach((el) => {
+      const src = el.getAttribute('src');
+      if (!isAdoAttachmentUrl(src)) return;
+      const blob = resolved.get(src);
+      if (blob) {
+        el.setAttribute('src', blob);
+        return;
+      }
+      // Strip src to suppress the broken-image flash; the data attribute
+      // drives the placeholder style in globals.css.
+      el.removeAttribute('src');
+      el.setAttribute('data-jfd-attachment-pending', '1');
+    });
+
+  return doc.body.innerHTML;
+}
 
 /** Renders ADO-stored HTML with click enrichments:
  *  - <a> opens in a new tab (and stops propagation so the modal/parent doesn't
@@ -48,108 +73,12 @@ export function RichTextRenderer({
   const [lightbox, setLightbox] = useState<{ items: Media[]; index: number } | null>(null);
   // Bare-minimum handling for content stored in markdown form: rewrite
   // `![alt](url)` to `<img>` so images at least render. No full markdown.
-  const renderedHtml = useMemo(() => convertMarkdownImages(html), [html]);
-
-  // Synchronous pre-mount sweep: runs after React commits the DOM but
-  // before the browser paints. Two jobs:
-  //   1. Anchor → <video> rewrite for video-extension hrefs (ADO stores
-  //      video attachments as plain links — Trix doesn't emit <video>).
-  //   2. Pre-empt the doomed cookie-auth fetch on attachment <img>/<video>
-  //      whenever we already know it'll fail. "Already know" means
-  //      either: the URL is in our blob cache from an earlier render, OR
-  //      we've previously seen *any* cookie-auth failure on this page.
-  //      In both cases we strip the src (canceling the in-flight cookie
-  //      fetch before the browser paints a broken-image icon) and either
-  //      assign the cached blob URL synchronously or kick off a PAT
-  //      fetch and assign once it resolves.
-  //
-  // Doing this in useLayoutEffect (not useEffect) is what makes the flash
-  // go away on poll-driven re-renders: by the time the browser would
-  // paint, our swap has already landed.
-  useLayoutEffect(() => {
-    const root = containerRef.current;
-    if (!root) return;
-
-    // (1) Promote video-extension anchors into <video controls>.
-    root.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
-      const href = a.getAttribute('href') ?? '';
-      if (!VIDEO_RE.test(href)) return;
-      if (a.dataset.jfdVideoConverted === '1') return;
-      const video = document.createElement('video');
-      video.src = href;
-      video.controls = true;
-      video.preload = 'metadata';
-      video.dataset.jfdVideoConverted = '1';
-      video.className = 'jfd-rt-video';
-      a.replaceWith(video);
-    });
-
-    // (2) Pre-emptive swap for any attachment whose blob is cached or
-    // whose cookie path is known to be broken on this page.
-    const controller = new AbortController();
-    const targets = root.querySelectorAll<HTMLImageElement | HTMLVideoElement>(
-      'img, video',
-    );
-    targets.forEach((el) => {
-      const src = el.getAttribute('src');
-      if (!isAdoAttachmentUrl(src)) return;
-      const cached = getCachedBlobUrl(src);
-      if (cached) {
-        el.setAttribute('src', cached);
-        return;
-      }
-      if (isCookieAuthKnownBroken()) {
-        // Strip src to cancel the in-flight cookie fetch (which would
-        // 302 → vssps sign-in → 500), then resolve via PAT.
-        el.removeAttribute('src');
-        void fetchAndCacheBlob(src, controller.signal).then((blobUrl) => {
-          if (controller.signal.aborted) return;
-          // PAT also failed → put the original back so the cookie path
-          // gets a last-resort try (might work if the user re-auth'd
-          // since we last saw a 500).
-          el.setAttribute('src', blobUrl ?? src);
-        });
-      }
-      // Else: leave the src alone; first-time-on-this-page case. The
-      // error listener below catches the cookie failure when (and if)
-      // it lands.
-    });
-
-    return () => controller.abort();
-  }, [renderedHtml]);
-
-  // Error listener: first-time recovery for an attachment whose cookie
-  // path failed before we'd seen any failure on this page. Fires once
-  // per `<img>`/`<video>` instance; on success it both swaps the src
-  // and (via fetchAndCacheBlob) populates the cache so the next render
-  // skips the flash entirely. Capture phase because 'error' doesn't
-  // bubble for media elements.
-  useEffect(() => {
-    const root = containerRef.current;
-    if (!root) return;
-    const controller = new AbortController();
-
-    const onError = (event: Event) => {
-      const el = event.target as HTMLImageElement | HTMLVideoElement | null;
-      if (!el) return;
-      if (el.tagName !== 'IMG' && el.tagName !== 'VIDEO') return;
-      const src = el.getAttribute('src');
-      if (!isAdoAttachmentUrl(src)) return;
-      if (el.dataset.jfdBlobAttempted === '1') return;
-      el.dataset.jfdBlobAttempted = '1';
-      markCookieAuthBroken();
-      void fetchAndCacheBlob(src, controller.signal).then((blobUrl) => {
-        if (controller.signal.aborted) return;
-        if (blobUrl) el.setAttribute('src', blobUrl);
-      });
-    };
-
-    root.addEventListener('error', onError, true);
-    return () => {
-      root.removeEventListener('error', onError, true);
-      controller.abort();
-    };
-  }, [renderedHtml]);
+  const normalizedHtml = useMemo(() => convertMarkdownImages(html), [html]);
+  const { resolved } = useAdoAttachments(normalizedHtml);
+  const renderedHtml = useMemo(
+    () => preprocessHtml(normalizedHtml, resolved),
+    [normalizedHtml, resolved],
+  );
 
   const onClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;

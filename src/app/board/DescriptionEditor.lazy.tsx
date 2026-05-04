@@ -6,12 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import { cn } from '@/lib/cn';
-import {
-  fetchAndCacheBlob,
-  getCachedBlobUrl,
-  isCookieAuthKnownBroken,
-  markCookieAuthBroken,
-} from './adoImageAuth';
+import { fetchAndCacheBlob, getCachedBlobUrl } from './adoImageAuth';
 import { EditorToolbar } from './EditorToolbar';
 import { attachmentKindOf, isAdoAttachmentUrl } from './attachments';
 import { convertMarkdownImages } from './markdownImg';
@@ -40,63 +35,27 @@ const DeletableImage = Image.extend({
 
       const img = document.createElement('img');
       const attrs = { ...this.options.HTMLAttributes, ...HTMLAttributes };
-      // Pre-empt the doomed cookie-auth fetch for ADO attachment URLs
-      // when we already have a blob: URL cached, or when we've seen any
-      // cookie failure on this page. Otherwise let the cookie path try
-      // first and let the error listener below recover if it fails.
-      // This is the same strategy RichTextRenderer uses; see
-      // adoImageAuth.ts for the cache + cookieAuthKnownBroken state.
+      // getHTML() serializes from the node's attrs (still the original ADO
+      // URL), not from the DOM — the blob URL is purely a display detail.
       const abortController = new AbortController();
-      let originalSrc: string | null = null;
       for (const [key, value] of Object.entries(attrs)) {
         if (value == null) continue;
-        if (key === 'src') {
+        if (key === 'src' && isAdoAttachmentUrl(String(value))) {
           const url = String(value);
-          originalSrc = url;
-          if (isAdoAttachmentUrl(url)) {
-            const cached = getCachedBlobUrl(url);
-            if (cached) {
-              img.setAttribute('src', cached);
-              continue;
-            }
-            if (isCookieAuthKnownBroken()) {
-              // Don't set src yet — kick off the PAT fetch and only
-              // assign once it resolves. Saves the broken-image flash
-              // on every reopen of the editor for the same item.
-              fetchAndCacheBlob(url, abortController.signal).then((blobUrl) => {
-                if (abortController.signal.aborted) return;
-                img.setAttribute('src', blobUrl ?? url);
-              });
-              continue;
-            }
+          const cached = getCachedBlobUrl(url);
+          if (cached) {
+            img.setAttribute('src', cached);
+          } else {
+            fetchAndCacheBlob(url, abortController.signal).then((blobUrl) => {
+              if (abortController.signal.aborted) return;
+              if (blobUrl) img.setAttribute('src', blobUrl);
+            });
           }
-          img.setAttribute(key, url);
           continue;
         }
         img.setAttribute(key, String(value));
       }
       wrap.appendChild(img);
-
-      // Error-driven recovery for the first-time cookie failure on this
-      // page. Subsequent renders will pre-empt via the cache /
-      // isCookieAuthKnownBroken check above.
-      //
-      // Tiptap's getHTML() reads from the editor's internal node state,
-      // not the DOM, so the saved-back HTML still carries the original
-      // ADO URL even after we swap to a blob: URL — the blob is purely a
-      // display detail.
-      let blobAttempted = false;
-      img.addEventListener('error', () => {
-        if (blobAttempted) return;
-        const src = img.getAttribute('src') ?? originalSrc;
-        if (!isAdoAttachmentUrl(src)) return;
-        blobAttempted = true;
-        markCookieAuthBroken();
-        fetchAndCacheBlob(src, abortController.signal).then((blobUrl) => {
-          if (abortController.signal.aborted) return;
-          if (blobUrl) img.setAttribute('src', blobUrl);
-        });
-      });
 
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -137,16 +96,10 @@ const DeletableImage = Image.extend({
 
       return {
         dom: wrap,
-        // Never let ProseMirror descend into our DOM to reconcile text —
-        // this is a leaf node (atom), so there's nothing to descend into.
+        // Atom leaf — nothing for ProseMirror to reconcile inside.
         ignoreMutation: () => true,
-        destroy: () => {
-          // Only abort our own pending PAT fetch — the blob URL itself
-          // is shared via the module-level cache (adoImageAuth.ts) and
-          // intentionally lives for the document's lifetime so other
-          // images / re-renders can reuse it without flash.
-          abortController.abort();
-        },
+        // Cache outlives the nodeView; only abort our own pending fetch.
+        destroy: () => abortController.abort(),
       };
     };
   },

@@ -440,6 +440,23 @@ body {
   background: #000;
 }
 
+/* Placeholder for ADO attachments awaiting their blob URL. */
+.jfd-rt img[data-jfd-attachment-pending],
+.jfd-rt video[data-jfd-attachment-pending] {
+  display: inline-block;
+  min-width: 80px;
+  min-height: 60px;
+  background: var(--color-overlay-soft);
+  border: 1px dashed var(--color-hairline);
+  border-radius: 6px;
+  cursor: default;
+  animation: jfd-attachment-pulse 1400ms ease-in-out infinite;
+}
+@keyframes jfd-attachment-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
 
 /* Focus hint — soft pulsing ring that briefly highlights a card or lane banner
  * after it gains focus (lane just expanded, modal just closed). Drawn with an
