@@ -27,6 +27,12 @@ function preprocessHtml(html: string, resolved: Map<string, string>): string {
   doc.body.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
     const href = a.getAttribute('href') ?? '';
     if (!VIDEO_RE.test(href)) return;
+    // Only inline ADO-hosted videos — those go through our PAT-fetched
+    // blob cache. Cross-origin hosts (Jira/SharePoint/etc., common after
+    // a migration) need their own auth we don't have; leave them as
+    // links so the click handler opens them in a new tab with the user's
+    // first-party session.
+    if (!isAdoAttachmentUrl(href)) return;
     const video = doc.createElement('video');
     video.src = href;
     video.controls = true;
