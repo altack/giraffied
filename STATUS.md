@@ -1,6 +1,6 @@
 # Giraffied — Status
 
-Last worked on: **2026-04-23** (Phase 10 sidebar polish — Core / Pinned / More collapsible)
+Last worked on: **2026-05-04** (Phase 13 — image auth rewrite: cookie path dropped, single source of truth blob cache + DOMParser src rewrite at the data layer)
 
 A Chrome MV3 extension that replaces the Azure DevOps sprint taskboard (`dev.azure.com/.../_sprints/taskboard/`) with a Linear/Sentry-style full-tab app. Reads/writes directly against the ADO REST API from the extension page (no backend). Auth is a PAT paste-in stored in `chrome.storage.local`.
 
@@ -170,6 +170,28 @@ Hairline dividers (`border-white/[0.06]` full-width via `-mx-4`) separate the zo
 
 **FieldRow action slot:** the label row of the generic `FieldRow` now accepts a trailing `action` node, right-aligned via `ml-auto`. The sidebar renderer wraps each pinnable row in `group` so the pin button can hover-reveal with `opacity-0 group-hover:opacity-100`.
 
+### Phase 11 — Bug-fix sprint (2026-05-04) ✅
+A focused round of fixes responding to user-reported issues. Each was small individually; together they touch most of the modal surface.
+
+- **Sprint-scoped time tracking.** `OverallTracking`, `WorkLogPanel`, `TimeContributors` now subscribe to `useCurrentIteration()` and skip any `revisedDate < iteration.attributes.startDate` when summing CompletedWork deltas. Carryover hours from a prior sprint no longer pollute the "By person" totals or the OverallTracking header. The `WorkLogPanel` running-total column resets at sprint start (was previously showing the field's all-time CompletedWork). Dropped `OverallTracking`'s "fast total" — it summed each card's *current* CompletedWork (all-time per card) which contradicted the sprint-scoped breakdown the popover renders. New "carryover only" empty state when every card's hours predate the sprint.
+- **Live identity search in `AssigneePicker`.** Picker pool now goes board → team (`useTeamMembers`) → project (`useProjectMembers`, lazy on first search, fans out to every team in the project + caches 10 min) → org IdentityPicker (best-effort; standard `vso.work_write` PATs 401 here, the hook swallows it silently and lets the project-wide layer carry the load). The IdentityPicker stays in the chain so PATs with broader scope light up extra results without code change. Email/UPN typing fallback was tried and removed — judged overkill for a normal flow.
+- **Light-mode active assignee filter visibility.** `text-indigo-100` on a translucent indigo wash was invisible on white. Added `theme-light:` overrides on the active chip + selected-row highlight so the activated state reads in both themes.
+- **Tag save reliability.** `TagsEditor` now exposes a `flush()` imperative handle via `useImperativeHandle`. The modal's `handleSubmit` calls `tagsRef.current?.flush()` first, folds any pending input into an `effectiveDraft`, and uses *that* for both `buildPatches` and the optimistic snapshot. Closes the bug where clicking Save with a half-typed tag silently dropped the tag (blur committed via setDraft → React scheduled the update → submit handler read draft from a stale closure before the update propagated).
+- **Image/video render reliability via PAT-fetched blobs.** `<img>`/`<video>` elements were 302→sign-in→500-ing whenever the user's `dev.azure.com` cookie was stale. New `fetchAuthedBlob(url)` in `client.ts` (with `credentials: 'omit'` — load-bearing; cookies were short-circuiting ADO's auth eval before it ever looked at the PAT header) + a module-level cache in `src/app/board/adoImageAuth.ts`. Cookie-failure recovery shipped as a patch-stack of `useLayoutEffect` pre-empt + capture-phase error listener + `cookieAuthKnownBroken` flag — replaced wholesale in Phase 13.
+- **Modal stability — fixes the every-30s flash + scroll jump.** `WorkItemModal` was recomputing `original = useMemo(() => toDraft(task), [task])` on every taskboard poll (poll lands → `task` reference changes → `original` recomputes → useEffect fires `setDraft(original)` → `draft.description` reference flips → `DescriptionField`'s `value` prop changes → Tiptap setContent re-parses → `<img>` nodeViews destroyed and recreated → image flash + DOM reflow shifts the scroll). Snapshot fix: `original` is now `useState(() => toDraft(task))` (lazy init, captured once at mount), and the auto-resync useEffect was removed. The modal is keyed on `workItem.id` at the BoardGrid call site, so opening a different task remounts and re-snapshots through the lazy initializer; we don't need a runtime sync. Save invalidates + closes the modal, so on reopen the user sees fresh data — no UX regression from giving up the live-resync.
+
+### Phase 13 — Image auth rewrite (cookie path dropped) ✅
+Replaces the Phase 11 patch-stack — `cookieAuthKnownBroken` flag + `useLayoutEffect` pre-empt sweep + capture-phase error listener + fallback chains — with a single source of truth: ADO attachments **always** go through the PAT-fetched blob cache. The cookie path was someone else's session that we couldn't refresh from the extension; PAT is the only auth that's ours.
+
+- **`adoImageAuth.ts` slimmed** to its essentials: `Map<originalUrl, blobUrl>` cache + `inflight` dedupe + `fetchAndCacheBlob(url)` + `getCachedBlobUrl(url)`. Dropped `cookieAuthKnownBroken` / `markCookieAuthBroken` / `isCookieAuthKnownBroken` — the renderer/nodeView no longer ask "is the cookie broken?", they just ask the cache. ~50 lines vs the previous ~75.
+- **New `useAdoAttachments(html)` hook** (`src/app/board/useAdoAttachments.ts`). Scans the HTML once for absolute ADO attachment URLs, kicks off parallel `fetchAndCacheBlob` calls for any not already cached, returns a `{ resolved: Map<url, blobUrl>, ready: boolean }` shape. `resolved` is a stable Map reference across renders that don't change the resolved set — keeps downstream `useMemo` (the renderer's `preprocessHtml`) from rebuilding for no reason and re-injecting via `dangerouslySetInnerHTML` (which is what produced the every-render flash before).
+- **`RichTextRenderer` rewrites src at the data layer.** `preprocessHtml(html, resolved)` parses the HTML with `DOMParser`, replaces each ADO attachment src with its cached blob URL (or strips the src + tags the element with `data-jfd-attachment-pending` while the fetch is in flight), and also handles the `<a href="…mp4|webm|mov|ogv|m4v">` → `<video controls>` upgrade in the same pass. Dropped the post-mount `useLayoutEffect` sweep, the capture-phase `error` listener, and the fallback-to-original-on-failure path. The cache says yes or no.
+- **Tiptap `DeletableImage` nodeView reads the cache during construction.** If the URL is in the cache, set src to the blob URL synchronously. If not, leave src empty and apply the blob URL when the fetch lands. No error listener, no `cookieAuthKnownBroken` check, no fallback. `getHTML()` reads from the editor's internal node state (not the DOM), so saved HTML still carries the original ADO URL — the blob is purely a display detail.
+- **Placeholder while in flight.** New `[data-jfd-attachment-pending]` style in `globals.css` — soft pulsing dashed outline at minimum 80×60px. Stripping the src plus the placeholder rule means no broken-image icon flash on first render; the cache means no flash on subsequent renders.
+- **Only failure mode after this is "PAT itself doesn't work"** — same failure mode every other API call already has, surfaced through the existing toaster / read-only banner UX. Phase 12 (Entra OAuth) is independent — when it lands the only change to image auth is `Authorization: Bearer …` instead of `Basic …` in `fetchAuthedBlob`.
+
+**Out of scope:** eviction / TTL on the blob cache (blob URLs are cheap, page lifetime is bounded; revisit if memory becomes an issue). Eager warmup before modal open (most cards don't have inline images).
+
 ---
 
 ## Remaining
@@ -194,9 +216,70 @@ Hairline dividers (`border-white/[0.06]` full-width via `-mx-4`) separate the zo
 ### Phase 8.5 — Inline create-task row (nice-to-have)
 - Superseded by the dialog for most flows, but a true inline row (focus in place, Enter submits, cursor stays on the next line) could still beat the dialog for "I'm typing 10 tasks back-to-back and never need the description field". Revisit if the dialog's Cmd+Enter repeat-entry proves too heavy for that use case.
 
+### Phase 12 — Real auth: Entra ID OAuth (replaces stored PAT)
+The PAT-paste model is the loudest wart left: the token sits in
+`chrome.storage.local` in plaintext, scope is over-broad ("Work Items: Read
+& write" covers writes a viewer wouldn't need), expirations are silent, and
+rotation is manual. Replace with Microsoft Entra ID OAuth via Chrome's
+identity API + PKCE.
+
+**Approach** — `chrome.identity.launchWebAuthFlow` opens a system browser
+window for the consent prompt, returns the auth code on the standard
+`https://<extension-id>.chromiumapp.org/` redirect URI Chrome reserves. We
+exchange via PKCE (no client secret required, so the multi-tenant Entra app
+ships with the public extension). Scope: `499b84ac-1321-427f-aa17-267ca6975798/.default`
+(Azure DevOps). Send `Authorization: Bearer <accessToken>` instead of Basic.
+Refresh tokens auto-rotate; access tokens are 1h-lived so the blast radius
+is much smaller than a long-lived PAT.
+
+**Implementation steps**:
+1. Register a multi-tenant Entra app under our publisher tenant (one-time,
+   no per-user setup). Reply URI = `https://<extension-id>.chromiumapp.org/`.
+   Note the `client_id`; commit it (it's not a secret in PKCE).
+2. Refactor `client.ts` so `Authorization` is computed by an
+   `AuthProvider` interface: `getAuthHeader(): Promise<string>` plus
+   `onUnauthorized(): Promise<boolean>` for refresh-on-401. Two impls:
+   `BearerAuthProvider` (Entra) and `PatAuthProvider` (current behavior,
+   kept as fallback).
+3. New `state/auth.store.ts` with `mode: 'oauth' | 'pat'`, access/refresh
+   token + expiry for oauth mode, current PAT for pat mode. Migrate
+   existing PAT-only `settings.store` users by copying `pat` → auth store
+   and leaving the settings store storing org/project/team only.
+4. Onboarding wizard step 1 becomes "Sign in with Microsoft" (primary
+   pearled button) + "Use a Personal Access Token" (secondary). Sign-in
+   path drives `chrome.identity.launchWebAuthFlow`, exchanges the code
+   via fetch to `login.microsoftonline.com/common/oauth2/v2.0/token` with
+   PKCE verifier, persists the tokens.
+5. `BearerAuthProvider.getAuthHeader()` returns cached access token if
+   `expiresAt > now + 60s`, otherwise hits the refresh endpoint and
+   updates the store before returning the new token. Wrap `adoRaw` so a
+   401 response triggers one refresh + retry before surfacing the error.
+6. Settings menu: "Signed in as <upn>" + "Sign out / re-link" + (for PAT
+   mode users) "Rotate PAT". Already part of Phase 9 polish — fold this in.
+
+**Trade-offs**:
+- Doesn't work for the small set of orgs still on legacy MSA-only auth
+  without an Entra tenant — keep the PAT path as a fallback for them.
+- `chrome.identity.launchWebAuthFlow` requires `"identity"` permission in
+  the manifest; that's a single-line addition.
+- Refresh tokens still live in `chrome.storage.local` — same trust
+  boundary as the PAT, but tokens are short-lived and revocable.
+
+Estimated scope: ~1 day end-to-end. Most of it is the Entra app
+registration ceremony + onboarding UX; `client.ts` is already a single
+seam, so the code change is small.
+
+**Out of scope for this phase**:
+- Device-code flow (UX is "copy this code into another tab" — bad fit
+  for a polished extension).
+- Service-worker cookie proxy (CORS doesn't allow extension-origin
+  credentialed cross-origin requests; workarounds break per Chrome update).
+- WebAuthn-wrapped PAT (high-friction gesture per session for a tool
+  opened many times a day).
+
 ### Phase 9 — Polish
 - Keyboard nav (j/k/x/c)
-- Settings page (PAT rotation, team switch, clear cache)
+- Settings page (team switch, clear cache, sign-out for OAuth / rotate-PAT for PAT mode — Phase 12 dependency)
 - Full pass on empty/error states
 - Package + submit to Web Store once usable
 
