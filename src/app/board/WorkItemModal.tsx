@@ -1,6 +1,8 @@
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -306,6 +308,15 @@ export function WorkItemModal({
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<ActivityTab>('comments');
 
+  // The TagsEditor keeps its in-progress chip-text in local state. When the
+  // user clicks Save with a half-typed tag, the input's onBlur commits via
+  // setDraft → React schedules a re-render, but the submit click reads
+  // `draft` from the closure captured before that re-render — so the new tag
+  // gets dropped silently. The ref exposes a synchronous `flush()` we call
+  // during handleSubmit to fold any pending input into the draft *before* we
+  // compute the patch list.
+  const tagsRef = useRef<TagsEditorHandle>(null);
+
   // Form-layout discovery: the fields the team configured on this work-item type.
   // These three fetches drive the generic layout-driven form. Running them for
   // every work-item type (not just Bug) so Tasks/Stories/PBIs also pick up any
@@ -526,9 +537,19 @@ export function WorkItemModal({
     e.preventDefault();
     if (readOnly) return;
     setError(null);
+    // Fold any half-typed tag from the chip input into the draft *before*
+    // we diff against `original`. flush() returns the resolved tag list when
+    // there was pending text, otherwise null — null means "nothing to do".
+    const flushedTags = tagsRef.current?.flush() ?? null;
+    const effectiveDraft: Draft =
+      flushedTags && !tagsEqual(flushedTags, draft.tags)
+        ? { ...draft, tags: flushedTags }
+        : draft;
+    if (effectiveDraft !== draft) setDraft(effectiveDraft);
+
     const { patches: structuralPatches, error } = buildPatches(
       original,
-      draft,
+      effectiveDraft,
       pointsField,
     );
     if (error) {
@@ -550,7 +571,7 @@ export function WorkItemModal({
     // filtered against the relations already on the work item.
     const added: string[] = newAttachmentUrls(
       original.description,
-      draft.description,
+      effectiveDraft.description,
     );
     for (const p of layoutPatches) {
       const ctl = allControls.find((c) => c.referenceName === p.field);
@@ -572,7 +593,7 @@ export function WorkItemModal({
     save.mutate({
       patches: all,
       addAttachments,
-      snapshotDraft: draft,
+      snapshotDraft: effectiveDraft,
       snapshotLayoutPatches: layoutPatches,
     });
   }
@@ -842,6 +863,7 @@ export function WorkItemModal({
           </SidebarField>
           <SidebarField label="Tags">
             <TagsEditor
+              ref={tagsRef}
               tags={draft.tags}
               onChange={(tags) => setDraft((d) => ({ ...d, tags }))}
               readOnly={readOnly}
@@ -1183,28 +1205,69 @@ function SidebarField({ label, children }: { label: string; children: React.Reac
 
 /* ── Tags editor ──────────────────────────────────────────────────────────── */
 
-function TagsEditor({
-  tags,
-  onChange,
-  readOnly = false,
-}: {
-  tags: string[];
-  onChange: (next: string[]) => void;
-  readOnly?: boolean;
-}) {
+interface TagsEditorHandle {
+  /** Synchronously fold any half-typed input into the tag list. Returns the
+   *  resolved tag array when there was pending text, otherwise `null`.
+   *  Called by the modal during submit so a Save click never silently drops
+   *  a tag the user typed but didn't press Enter on. */
+  flush(): string[] | null;
+}
+
+function mergeTags(existing: string[], raw: string): string[] | null {
+  const pieces = raw
+    .split(/[;,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (pieces.length === 0) return null;
+  const seen = new Set(existing.map((t) => t.toLowerCase()));
+  const additions: string[] = [];
+  for (const p of pieces) {
+    const k = p.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    additions.push(p);
+  }
+  if (additions.length === 0) return null;
+  return [...existing, ...additions];
+}
+
+const TagsEditor = forwardRef<
+  TagsEditorHandle,
+  {
+    tags: string[];
+    onChange: (next: string[]) => void;
+    readOnly?: boolean;
+  }
+>(function TagsEditor({ tags, onChange, readOnly = false }, ref) {
   const [draft, setDraft] = useState('');
+  // Mirror current props in refs so flush() can read the latest values
+  // without the parent's submit handler racing a stale closure.
+  const tagsRef = useRef(tags);
+  tagsRef.current = tags;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   function commit(raw: string) {
-    const pieces = raw
-      .split(/[;,]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (pieces.length === 0) return;
-    const existing = new Set(tags.map((t) => t.toLowerCase()));
-    const additions = pieces.filter((p) => !existing.has(p.toLowerCase()));
-    if (additions.length === 0) return;
-    onChange([...tags, ...additions]);
+    const next = mergeTags(tagsRef.current, raw);
+    if (!next) return;
+    onChange(next);
   }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      flush: () => {
+        const pending = draftRef.current.trim();
+        if (!pending) return null;
+        const next = mergeTags(tagsRef.current, pending);
+        setDraft('');
+        if (!next) return null;
+        onChange(next);
+        return next;
+      },
+    }),
+    [onChange],
+  );
 
   function handleKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' || e.key === ',' || e.key === ';' || e.key === 'Tab') {
@@ -1278,7 +1341,7 @@ function TagsEditor({
       )}
     </div>
   );
-}
+});
 
 /* ── Time tracking ────────────────────────────────────────────────────────── */
 
