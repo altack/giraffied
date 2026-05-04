@@ -10,6 +10,11 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2, UserX } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useTeamMembers } from '@/ado/hooks/useTeamMembers';
+import {
+  useDebouncedValue,
+  useIdentitySearch,
+} from '@/ado/hooks/useIdentitySearch';
+import { useProjectMembers } from '@/ado/hooks/useProjectMembers';
 import type { AdoIdentity } from '@/ado/types';
 import { cn } from '@/lib/cn';
 import { Avatar } from './Avatar';
@@ -39,6 +44,18 @@ export function AssigneePicker({
   const { data: members, isLoading: membersLoading, isError } = useTeamMembers();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const trimmedFilter = filter.trim();
+  const isSearching = trimmedFilter.length > 0;
+  // Lazy: project-wide member pool only fetches once the user starts
+  // typing. It's a fan-out across every team in the project so we don't
+  // want to pay it on every modal open.
+  const projectMembers = useProjectMembers(open && isSearching);
+  // Best-effort org-wide IdentityPicker search; debounced + scope-gated
+  // (most "Work Items Read & write" PATs 401 here, which the hook
+  // swallows silently). When it does work, results merge in alongside
+  // the team/project pools.
+  const debouncedFilter = useDebouncedValue(filter, 250);
+  const orgSearch = useIdentitySearch(debouncedFilter, open);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -85,11 +102,27 @@ export function AssigneePicker({
   }, [open]);
 
   const { results, searching } = useMemo(() => {
-    const q = filter.trim().toLowerCase();
+    const q = trimmedFilter.toLowerCase();
     if (!q) return { results: boardAssignees, searching: false };
+    // Pool sources, in order: current board → current team → all teams
+    // in the project → org-wide IdentityPicker (best-effort). Each layer
+    // dedupes against earlier ones via uniqueName/id, so a user already
+    // on the team isn't duplicated when they also surface in the
+    // project-wide list.
     const pool = new Map<string, AdoIdentity>();
     for (const a of boardAssignees) pool.set(identityKey(a), a);
-    for (const m of members ?? []) pool.set(identityKey(m.identity), m.identity);
+    for (const m of members ?? []) {
+      const k = identityKey(m.identity);
+      if (!pool.has(k)) pool.set(k, m.identity);
+    }
+    for (const m of projectMembers.data ?? []) {
+      const k = identityKey(m.identity);
+      if (!pool.has(k)) pool.set(k, m.identity);
+    }
+    for (const id of orgSearch.data ?? []) {
+      const k = identityKey(id);
+      if (!pool.has(k)) pool.set(k, id);
+    }
     const matches: AdoIdentity[] = [];
     for (const id of pool.values()) {
       const hay =
@@ -100,7 +133,7 @@ export function AssigneePicker({
       a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }),
     );
     return { results: matches.slice(0, 100), searching: true };
-  }, [filter, boardAssignees, members]);
+  }, [trimmedFilter, boardAssignees, members, projectMembers.data, orgSearch.data]);
 
   const pick = useCallback(
     (id: AdoIdentity | null) => {
@@ -224,12 +257,17 @@ export function AssigneePicker({
               })}
               {results.length === 0 && !isError && (
                 <div className="px-2.5 py-2 text-[12px] text-[var(--color-ink-dim)] flex items-center gap-1.5">
-                  {searching && membersLoading && (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  )}
+                  {searching &&
+                    (membersLoading ||
+                      projectMembers.isFetching ||
+                      orgSearch.isFetching) && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    )}
                   {searching
-                    ? membersLoading
-                      ? 'Searching team…'
+                    ? membersLoading ||
+                      projectMembers.isFetching ||
+                      orgSearch.isFetching
+                      ? 'Searching project…'
                       : 'No matches.'
                     : 'No one is on this board yet.'}
                 </div>

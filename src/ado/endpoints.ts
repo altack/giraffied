@@ -5,9 +5,12 @@ import type {
   AdoField,
   AdoFieldDefinition,
   AdoFormLayout,
+  AdoIdentity,
   AdoIteration,
   AdoIterationWorkItems,
   AdoList,
+  AdoPickerIdentity,
+  AdoPickerSearchResponse,
   AdoProject,
   AdoProjectProperty,
   AdoReorderOperation,
@@ -58,6 +61,45 @@ export async function listTeamMembers(
     path: `/_apis/projects/${encodeURIComponent(projectId)}/teams/${encodeURIComponent(teamId)}/members?$top=500`,
   });
   return members.sort((a, b) =>
+    a.identity.displayName.localeCompare(b.identity.displayName, undefined, {
+      sensitivity: 'base',
+    }),
+  );
+}
+
+/** GET every member of every team in a project, flattened + deduped by
+ *  identity. Used as the assignee-picker's broad pool when the user
+ *  searches for someone outside the current team — the IdentityPicker
+ *  REST endpoint is gated behind `vso.profile` (which most "Work Items
+ *  Read & write" PATs don't carry), but listing teams + their members is
+ *  reachable with the same scope every other call in this app uses.
+ *
+ *  Cost: one project-teams call + one members call per team. We fan
+ *  these out in parallel and cache the result aggressively at the hook
+ *  layer (10 min) so the picker only pays this on the first search per
+ *  session. Per-team failures are swallowed — one team that 403s
+ *  shouldn't blank the entire pool. */
+export async function listAllProjectMembers(
+  projectId: string,
+): Promise<AdoTeamMember[]> {
+  const teams = await listTeams(projectId);
+  const lists = await Promise.all(
+    teams.map((t) =>
+      listTeamMembers(projectId, t.id).catch(() => [] as AdoTeamMember[]),
+    ),
+  );
+  const seen = new Set<string>();
+  const out: AdoTeamMember[] = [];
+  for (const list of lists) {
+    for (const m of list) {
+      const key =
+        m.identity.uniqueName ?? m.identity.id ?? m.identity.displayName;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+    }
+  }
+  return out.sort((a, b) =>
     a.identity.displayName.localeCompare(b.identity.displayName, undefined, {
       sensitivity: 'base',
     }),
@@ -416,6 +458,68 @@ export function getConnectionData(): Promise<AdoConnectionData> {
     path: `/_apis/connectionData`,
     apiVersion: '7.1-preview.1',
   });
+}
+
+/** Search the org's identities via the same picker API the native ADO UI
+ *  uses for assignee suggestions. Returns identities matching `query` by
+ *  display name / email / sam-account-name — including users who have
+ *  never been on the current board or team (i.e. nobody `listTeamMembers`
+ *  would expose). The endpoint accepts the same Basic-auth PAT we use
+ *  everywhere else; orgs that lock it down to elevated scopes will 401/403
+ *  and the caller should treat the search as best-effort.
+ *
+ *  We only ask for user identities, scoped to the org's directory + IMS
+ *  groups (the same `operationScopes` the web UI sends). MaxResults is
+ *  capped at 30 so the picker stays responsive. */
+export async function searchOrgIdentities(
+  query: string,
+  signal?: AbortSignal,
+): Promise<AdoPickerIdentity[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const body = {
+    query: trimmed,
+    identityTypes: ['user'],
+    operationScopes: ['ims', 'source'],
+    options: { MinResults: 5, MaxResults: 30 },
+    properties: [
+      'DisplayName',
+      'Mail',
+      'SamAccountName',
+      'SignInAddress',
+      'SubjectDescriptor',
+      'Active',
+      'Image',
+    ],
+  };
+  const res = await ado<AdoPickerSearchResponse>({
+    path: '/_apis/IdentityPicker/Identities',
+    method: 'POST',
+    apiVersion: '5.0-preview.1',
+    body,
+    signal,
+  });
+  const out: AdoPickerIdentity[] = [];
+  for (const r of res.results ?? []) {
+    for (const i of r.identities ?? []) out.push(i);
+  }
+  return out;
+}
+
+/** Map an IdentityPicker entry to the AdoIdentity shape the rest of the
+ *  app speaks. signInAddress/mail/samAccountName all map to `uniqueName`
+ *  in priority order — System.AssignedTo's PATCH accepts whichever the
+ *  org uses to identify users (UPN for AAD, email for MSA, sam for older
+ *  on-prem-style identities; we don't target on-prem but the field
+ *  accepts the value either way). */
+export function pickerIdentityToAdo(p: AdoPickerIdentity): AdoIdentity {
+  return {
+    displayName: p.displayName,
+    uniqueName: p.signInAddress || p.mail || p.samAccountName,
+    id: p.localId || p.originId || p.entityId,
+    descriptor: p.subjectDescriptor,
+    imageUrl: p.image || undefined,
+  };
 }
 
 /** GET the revision history of a work item. Most-recent rev last. */

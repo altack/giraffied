@@ -337,6 +337,46 @@ export interface AdoCommentList {
   nextPage?: string;
 }
 
+/** Shape of one entry returned from `POST /_apis/IdentityPicker/Identities`.
+ *  This is the same endpoint the native ADO web UI uses to power its
+ *  assignee/people pickers, so it can resolve any identity in the org —
+ *  including users who have never been on the current board or team
+ *  (which `listTeamMembers` would not surface). The picker accepts the
+ *  same Basic-auth PAT we use everywhere else. The response is wrapped in
+ *  `{ results: [{ queryToken, identities: [...] }] }` — one results
+ *  entry per query token (we only ever send one). */
+export interface AdoPickerIdentity {
+  entityId?: string;
+  entityType?: 'User' | 'Group' | string;
+  originDirectory?: string;
+  originId?: string;
+  localDirectory?: string;
+  localId?: string;
+  displayName: string;
+  scopeName?: string;
+  samAccountName?: string;
+  subjectDescriptor?: string;
+  /** AAD-backed orgs populate `signInAddress` (the user's UPN). MSA-backed
+   *  orgs populate `mail` (the user's primary email). System.AssignedTo
+   *  accepts either as the uniqueName, so we coalesce when mapping. */
+  signInAddress?: string;
+  mail?: string;
+  isMru?: boolean;
+  active?: boolean;
+  /** Some tenants populate this; others don't. When present we forward it
+   *  to AdoIdentity.imageUrl so the avatar can fade in instead of showing
+   *  initials. */
+  image?: string;
+}
+
+export interface AdoPickerSearchResponse {
+  results: Array<{
+    queryToken: string;
+    identities: AdoPickerIdentity[];
+    pagingToken?: string;
+  }>;
+}
+
 /** Reply from `GET /_apis/connectionData`. We only care about the authenticated user id. */
 export interface AdoConnectionData {
   authenticatedUser: {
