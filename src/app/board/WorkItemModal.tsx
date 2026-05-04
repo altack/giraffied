@@ -291,7 +291,17 @@ export function WorkItemModal({
   const type = workItemTypeStyle(wiType);
   const createdBy = task.workItem.fields['System.CreatedBy'] ?? null;
 
-  const original = useMemo(() => toDraft(task), [task]);
+  // `original` is captured once at mount and held stable for the modal's
+  // lifetime. The taskboard polls every 30s and hands us a fresh `task`
+  // reference each cycle; if we tracked that here, every poll would
+  // ripple `setDraft(original)` (see the previous useEffect), bump
+  // `draft.description`, change `DescriptionEditor`'s `value` prop,
+  // trigger Tiptap's setContent → reparse, destroy + rebuild `<img>`
+  // nodeViews, and produce the broken-image flash + scroll jump the
+  // user reported. Snapshotting decouples the modal from the poll: the
+  // edit surface is stable until the user saves (which invalidates and
+  // closes the modal — re-opening picks up fresh data) or cancels.
+  const [original] = useState<Draft>(() => toDraft(task));
   const [draft, setDraft] = useState<Draft>(original);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<ActivityTab>('comments');
@@ -357,13 +367,12 @@ export function WorkItemModal({
 
   const [layoutDraft, setLayoutDraft] = useState<DraftRecord>({});
 
-  // Reset the structural draft whenever the modal (re)opens for a task. Depends
-  // on `original` (the pure structural snapshot) so that later hydration of the
-  // layout fields doesn't clobber user edits in the structural area.
-  useEffect(() => {
-    setDraft(original);
-    setError(null);
-  }, [original, open]);
+  // (Used to live a useEffect here that re-set `draft` to `original`
+  // whenever the latter changed. It was the source of the every-30s
+  // image flash + scroll jump — see the comment on `useState<Draft>`
+  // above. The modal is keyed on workItem.id at the BoardGrid call
+  // site, so opening a different task remounts and gets fresh state
+  // through the lazy initializer; we don't need a runtime sync.)
 
   // One-shot hydration of layout draft once the layout + full-item fetches land.
   // Ref-guarded per work-item id so resolving fetches after the user has already
