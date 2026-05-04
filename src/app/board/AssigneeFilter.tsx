@@ -225,7 +225,9 @@ export function AssigneeFilter({
                         'w-full flex items-center gap-2 px-2 py-1.5 text-left text-[12.5px]',
                         'transition-colors duration-100',
                         isActive && 'bg-[var(--color-overlay-1)]',
-                        isSelected && 'bg-indigo-400/[0.08]',
+                        // 8% indigo wash disappears into a white canvas; bump
+                        // the alpha for light theme so "selected" reads.
+                        isSelected && 'bg-indigo-400/[0.08] theme-light:bg-indigo-500/[0.14]',
                       )}
                     >
                       <Avatar identity={e.identity} size="sm" />
@@ -328,6 +330,9 @@ function ActiveChip({
       className={cn(
         'inline-flex items-center h-7 pl-1 pr-0.5 rounded-md',
         'bg-indigo-400/[0.10] border border-indigo-400/30 lit-top',
+        // Dark-tuned indigo washes blend into a white canvas. Bump fill +
+        // border so the chip reads as activated under [data-theme="light"].
+        'theme-light:bg-indigo-500/[0.14] theme-light:border-indigo-500/45',
         'transition-colors duration-150',
       )}
     >
@@ -340,14 +345,18 @@ function ActiveChip({
         title={`Filtering by ${selected.identity.displayName} — click to change`}
         className={cn(
           'inline-flex items-center gap-1.5 h-6 pl-0.5 pr-1.5 rounded-sm',
-          'text-[12px] text-indigo-100 font-medium',
+          // text-indigo-100 is near-white — invisible on the light chip fill.
+          // theme-light flips to indigo-700 for clear contrast.
+          'text-[12px] text-indigo-100 theme-light:text-indigo-800 font-medium',
           'hover:bg-[var(--color-overlay-soft)] transition-colors duration-100',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
         )}
       >
         <Avatar identity={selected.identity} size="sm" />
         <span className="max-w-[140px] truncate">{selected.identity.displayName}</span>
-        <span className="mono text-[10.5px] text-indigo-300/70">{selected.count}</span>
+        <span className="mono text-[10.5px] text-indigo-300/70 theme-light:text-indigo-700/80">
+          {selected.count}
+        </span>
       </button>
       <button
         type="button"
@@ -357,6 +366,7 @@ function ActiveChip({
         className={cn(
           'inline-flex items-center justify-center h-5 w-5 rounded',
           'text-indigo-200/70 hover:text-white hover:bg-[var(--color-overlay-1)]',
+          'theme-light:text-indigo-700/70 theme-light:hover:text-indigo-900 theme-light:hover:bg-indigo-500/15',
           'transition-colors duration-100',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
         )}
