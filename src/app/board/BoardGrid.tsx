@@ -12,6 +12,7 @@ import {
 import { useSettings } from '@/state/settings.store';
 import { laneContextKey, useCollapsedLanes } from '@/state/collapsedLanes.store';
 import { cn } from '@/lib/cn';
+import { UNPARENTED_LANE_KEY, moveCard } from '@/lib/reorder';
 import { AnimatedCount } from './AnimatedCount';
 import { CreateTaskDialog, appendCreatedTask } from './CreateTaskDialog';
 import { TaskCard } from './TaskCard';
@@ -19,8 +20,6 @@ import { SwimlaneBanner, UnparentedBanner } from './SwimlaneHeader';
 import { WorkItemModal } from './WorkItemModal';
 import { assigneeKey } from './assigneesOnBoard';
 import { laneHueRgb, readPoints } from './workItemVisuals';
-
-const UNPARENTED_LANE_KEY = 'unparented';
 
 interface Row {
   key: string;
@@ -520,63 +519,3 @@ function ColumnCell({
   );
 }
 
-/** Move a card within its lane's `tasks` array so that within the destination column
- *  filter it sits at `destIndex`. Also patches the card's columnId/state if changed. */
-function moveCard(
-  data: TaskboardData,
-  laneKey: string,
-  cardId: number,
-  patch: {
-    columnId: string;
-    columnName: string;
-    destIndex: number;
-    state?: string;
-  },
-): TaskboardData {
-  const reorderLane = (tasks: TaskOnBoard[]): TaskOnBoard[] => {
-    const idx = tasks.findIndex((t) => t.workItem.id === cardId);
-    if (idx < 0) return tasks;
-
-    const card = tasks[idx];
-    const moved: TaskOnBoard = {
-      ...card,
-      taskboard: {
-        ...card.taskboard,
-        columnId: patch.columnId,
-        column: patch.columnName,
-        ...(patch.state ? { state: patch.state } : {}),
-      },
-      workItem: patch.state
-        ? {
-            ...card.workItem,
-            fields: { ...card.workItem.fields, 'System.State': patch.state },
-          }
-        : card.workItem,
-    };
-
-    const without = [...tasks.slice(0, idx), ...tasks.slice(idx + 1)];
-    let seen = 0;
-    let insertAt = without.length;
-    for (let i = 0; i < without.length; i++) {
-      if (without[i].taskboard.columnId === patch.columnId) {
-        if (seen === patch.destIndex) {
-          insertAt = i;
-          break;
-        }
-        seen++;
-      }
-    }
-    return [...without.slice(0, insertAt), moved, ...without.slice(insertAt)];
-  };
-
-  if (laneKey === UNPARENTED_LANE_KEY) {
-    return { ...data, unparented: reorderLane(data.unparented) };
-  }
-  const parentId = Number(laneKey);
-  return {
-    ...data,
-    swimlanes: data.swimlanes.map((lane) =>
-      lane.row.id === parentId ? { ...lane, tasks: reorderLane(lane.tasks) } : lane,
-    ),
-  };
-}

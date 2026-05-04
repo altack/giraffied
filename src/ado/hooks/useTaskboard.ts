@@ -11,10 +11,15 @@ import type {
   AdoTaskboardColumn,
   AdoTaskboardWorkItem,
   AdoWorkItem,
-  AdoWorkItemType,
 } from '@/ado/types';
 import { useSettings } from '@/state/settings.store';
 import { useCurrentIteration } from './useCurrentIteration';
+import {
+  collectSafeIds,
+  composeBoardData,
+  synthesizeFromWorkItemType,
+  synthesizeItemsFromWorkItems,
+} from './taskboard.helpers';
 
 export interface TaskOnBoard {
   taskboard: AdoTaskboardWorkItem;
@@ -48,64 +53,6 @@ function isColumnsNotCustomizedError(e: unknown): boolean {
     e.status === 400 &&
     /columns are not added|customize the taskboard columns/i.test(e.body)
   );
-}
-
-/** One column per non-Removed state — matches what native ADO renders when the team
- *  has not customized taskboard columns. Category gives the primary sort order so
- *  Proposed (To Do) comes before InProgress before Resolved before Completed (Done). */
-function synthesizeFromWorkItemType(taskType: AdoWorkItemType): {
-  columns: AdoTaskboardColumn[];
-  stateToColumnId: Map<string, string>;
-} {
-  const CATEGORY_ORDER: Record<string, number> = {
-    Proposed: 0,
-    InProgress: 1,
-    Resolved: 2,
-    Completed: 3,
-  };
-  const visible = taskType.states.filter((s) => s.category !== 'Removed');
-  // Remember the original API order to break ties within a category.
-  const apiIndex = new Map(visible.map((s, i) => [s.name, i]));
-
-  const columns: AdoTaskboardColumn[] = visible.map((s) => ({
-    id: `state-${s.name}`,
-    name: s.name,
-    mappings: { Task: s.name },
-  }));
-  columns.sort((a, b) => {
-    const sa = visible.find((s) => s.name === a.name)!;
-    const sb = visible.find((s) => s.name === b.name)!;
-    const diff = (CATEGORY_ORDER[sa.category] ?? 99) - (CATEGORY_ORDER[sb.category] ?? 99);
-    return diff !== 0 ? diff : apiIndex.get(a.name)! - apiIndex.get(b.name)!;
-  });
-
-  const stateToColumnId = new Map<string, string>();
-  for (const s of visible) stateToColumnId.set(s.name, `state-${s.name}`);
-  return { columns, stateToColumnId };
-}
-
-function synthesizeItemsFromWorkItems(
-  workItems: AdoWorkItem[],
-  columns: AdoTaskboardColumn[],
-  stateToColumnId: Map<string, string>,
-  cardTypes: Set<string>,
-): AdoTaskboardWorkItem[] {
-  const colName = new Map(columns.map((c) => [c.id, c.name]));
-  const out: AdoTaskboardWorkItem[] = [];
-  for (const wi of workItems) {
-    const type = wi.fields['System.WorkItemType'];
-    if (!cardTypes.has(type)) continue;
-    const state = wi.fields['System.State'];
-    const columnId = stateToColumnId.get(state);
-    if (!columnId) continue;
-    out.push({
-      workItemId: wi.id,
-      state,
-      column: colName.get(columnId) ?? '',
-      columnId,
-    });
-  }
-  return out;
 }
 
 async function tryFetch<T>(label: string, fn: () => Promise<T>): Promise<T | { __err: unknown }> {
@@ -179,28 +126,15 @@ async function loadTaskboard(
     itemCount: itemsResult?.value.length,
   });
 
-  const ids = new Set<number>();
-  for (const r of relationsData.workItemRelations) {
-    ids.add(r.target.id);
-    if (r.source) ids.add(r.source.id);
-  }
-  if (itemsResult) for (const t of itemsResult.value) ids.add(t.workItemId);
-
-  // ADO can emit relations with a null `target.id` (less often a null
-  // `source.id`) when an iteration references a work item that's been
-  // deleted, tombstoned, or lives in another project the caller can't
-  // resolve. The TS type says `number` but the JSON says otherwise; if we
-  // pass one through to /workitemsbatch the whole chunk 400s with
-  // "Error converting value {null} to type 'System.Int32'". Filter them out
-  // — a null id had no resolvable work item to fetch anyway.
-  const safeIds = [...ids].filter(
-    (x): x is number => typeof x === 'number' && Number.isFinite(x),
+  const { ids: safeIds, dropped } = collectSafeIds(
+    relationsData.workItemRelations,
+    itemsResult ? itemsResult.value : null,
   );
-  if (safeIds.length !== ids.size) {
+  if (dropped > 0) {
     log('dropped invalid work-item ids from batch', {
-      total: ids.size,
+      total: safeIds.length + dropped,
       kept: safeIds.length,
-      dropped: ids.size - safeIds.length,
+      dropped,
     });
   }
   log('fetching work items', { count: safeIds.length });
@@ -236,92 +170,21 @@ async function loadTaskboard(
     });
   }
 
-  const byId = new Map<number, AdoWorkItem>();
-  for (const wi of workItems) byId.set(wi.id, wi);
-
-  const parentOf = new Map<number, number>();
-  const childrenByParent = new Map<number, Set<number>>();
-  for (const r of relationsData.workItemRelations) {
-    if (!r.source) continue;
-    parentOf.set(r.target.id, r.source.id);
-    const children = childrenByParent.get(r.source.id) ?? new Set<number>();
-    children.add(r.target.id);
-    childrenByParent.set(r.source.id, children);
-  }
-
-  const cardsById = new Map<number, AdoTaskboardWorkItem>();
-  for (const t of taskboardItems) cardsById.set(t.workItemId, t);
-
-  // Build rowIdSet in ADO's returned order. relationsData.workItemRelations is
-  // already StackRank-ordered, so first-seen-wins via Set insertion gives us
-  // the row order ADO would render. A row is either:
-  //   • a parent of any card (appears as `source` of a child relation), or
-  //   • a top-level sprint item with no child cards (a `source: null` relation
-  //     whose target isn't itself a card — e.g. a Bug with no Tasks).
-  const rowIdSet = new Set<number>();
-  for (const r of relationsData.workItemRelations) {
-    if (r.source == null) {
-      const rootId = r.target.id;
-      if (typeof rootId !== 'number' || !Number.isFinite(rootId)) continue;
-      if (cardsById.has(rootId)) continue;
-      if (!byId.has(rootId)) continue;
-      rowIdSet.add(rootId);
-    } else {
-      const parentId = r.source.id;
-      if (typeof parentId !== 'number' || !Number.isFinite(parentId)) continue;
-      if (!byId.has(parentId)) continue;
-      rowIdSet.add(parentId);
-    }
-  }
-
-  const unparentedIds: number[] = [];
-  for (const card of taskboardItems) {
-    const parentId = parentOf.get(card.workItemId);
-    if (parentId == null || !byId.has(parentId)) {
-      unparentedIds.push(card.workItemId);
-    }
-  }
-
-  const rowWorkItems = [...rowIdSet]
-    .map((id) => byId.get(id))
-    .filter((x): x is AdoWorkItem => x != null);
-
-  const toTask = (id: number): TaskOnBoard | null => {
-    const tb = cardsById.get(id);
-    const wi = byId.get(id);
-    if (!tb || !wi) return null;
-    return { taskboard: tb, workItem: wi };
-  };
-
-  // Subtasks are NOT sorted. We preserve the order ADO returned (from
-  // /iterations/{id}/workitems for hierarchy, /taskboardworkitems for customized
-  // boards) — that order already reflects ADO's StackRank, which is the source of
-  // truth the user reorders against. Sorting client-side would either duplicate or
-  // fight that order.
-  const swimlanes: Swimlane[] = rowWorkItems.map((row) => {
-    const childIds = [...(childrenByParent.get(row.id) ?? [])];
-    const tasks = childIds.map(toTask).filter((x): x is TaskOnBoard => x != null);
-    return { row, tasks };
-  });
-
-  const unparented = unparentedIds
-    .map(toTask)
-    .filter((x): x is TaskOnBoard => x != null);
-
-  const data: TaskboardData = {
+  // Subtasks are NOT sorted client-side. composeBoardData preserves the order
+  // ADO returned (from /iterations/{id}/workitems for hierarchy,
+  // /taskboardworkitems for customized boards) — that order already reflects
+  // ADO's StackRank, which is the source of truth the user reorders against.
+  const data = composeBoardData({
+    relations: relationsData.workItemRelations,
+    taskboardItems,
+    workItems,
     columns,
-    swimlanes,
-    unparented,
-    totals: {
-      cards: taskboardItems.length,
-      swimlanes: swimlanes.length + (unparented.length > 0 ? 1 : 0),
-    },
     columnsFallback,
-  };
+  });
   log('loadTaskboard done', {
-    columns: columns.length,
-    swimlanes: swimlanes.length,
-    unparented: unparented.length,
+    columns: data.columns.length,
+    swimlanes: data.swimlanes.length,
+    unparented: data.unparented.length,
     cards: taskboardItems.length,
   });
   return data;
