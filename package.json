@@ -1,6 +1,6 @@
 {
   "name": "giraffied",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "A Linear-style Chrome extension for the Azure DevOps sprint taskboard.",
   "type": "module",
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "icons": "node scripts/render-icons.mjs"
   },
   "packageManager": "pnpm@10.33.0",
   "dependencies": {
@@ -40,6 +41,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.5",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.2.3",
     "typescript": "^6.0.3",
     "vite": "^8.0.9",

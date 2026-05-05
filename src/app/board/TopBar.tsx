@@ -8,6 +8,7 @@ import { AssigneeFilter } from './AssigneeFilter';
 import { ThemeMenu } from './ThemeMenu';
 import type { BoardAssignee } from './assigneesOnBoard';
 import { SearchTrigger } from './search/SearchTrigger';
+import giraffeUrl from '@/assets/giraffe.svg';
 
 function formatRange(iteration: AdoIteration | undefined): string | null {
   if (!iteration) return null;
@@ -47,9 +48,9 @@ export function TopBar({
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-5 h-11 bg-[var(--color-canvas)]/70 backdrop-blur-lg border-b border-[var(--color-hairline)]">
       <div className="flex items-center gap-3 min-w-0">
-        <span className="text-[13px] font-semibold tracking-tight">
+        <span className="flex items-center gap-1.5 text-[13px] font-semibold tracking-tight">
+          <img src={giraffeUrl} alt="" aria-hidden className="h-4 w-auto shrink-0" />
           <span className="jfd-wordmark">Giraffied</span>
-          {' 🦒'}
         </span>
         <Sep />
         <span className="text-[13px] text-[var(--color-ink)] font-medium truncate">

@@ -22,6 +22,7 @@ import {
   stateChipTone,
   workItemTypeStyle,
 } from '../workItemVisuals';
+import giraffeUrl from '@/assets/giraffe.svg';
 
 /** Short label for each scope's pill tab, and the hint text that appears in
  *  the empty-state copy ("searching across <scopeLabel>"). */
@@ -512,7 +513,7 @@ function SearchFooter() {
       )}
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <span aria-hidden className="text-[12px] leading-none">🦒</span>
+        <img src={giraffeUrl} alt="" aria-hidden className="h-3.5 w-auto" />
         <span className="jfd-wordmark text-[11.5px] font-semibold tracking-tight">
           Giraffied
         </span>

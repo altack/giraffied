@@ -7,6 +7,7 @@ import { listProjects, listTeams } from '@/ado/endpoints';
 import { AdoError } from '@/ado/client';
 import { useSettings } from '@/state/settings.store';
 import type { AdoProject, AdoTeam } from '@/ado/types';
+import giraffeUrl from '@/assets/giraffe.svg';
 
 type Step = 'credentials' | 'project' | 'team';
 
@@ -100,9 +101,9 @@ export function OnboardingFlow() {
       />
       <div className="relative w-full max-w-md space-y-7">
         <header className="space-y-2">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em]">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
+            <img src={giraffeUrl} alt="" aria-hidden className="h-5 w-auto" />
             <span className="jfd-wordmark">Giraffied</span>
-            {' 🦒'}
           </div>
           <h1 className="text-[22px] font-semibold tracking-tight leading-tight">
             Connect to Azure DevOps
