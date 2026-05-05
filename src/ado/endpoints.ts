@@ -312,10 +312,17 @@ export function patchWorkItemField(
 
 /** PATCH multiple fields on a work item in a single request.
  *
- *  For "clear this field" (null or empty string), we emit `op: "remove"` with
- *  no `value`. Sending `{ op: "add", value: "" }` for System.Tags is silently
- *  a no-op — ADO only honors removal via the JSON-Patch `remove` op. The same
- *  op also reliably clears identity fields like System.AssignedTo.
+ *  Op selection:
+ *  - `null` → `op: "remove"`. Drops identity-style fields like
+ *    System.AssignedTo cleanly.
+ *  - System.Tags → `op: "replace"`. Critically, ADO's JSON-Patch implementation
+ *    treats `op: "add"` on `/fields/System.Tags` as a **merge** (the value is
+ *    the set of tags to ADD to the existing list), not a set-to-this-value.
+ *    So sending `op: "add", value: "Foo"` against a work item already tagged
+ *    `Bar` leaves it tagged `Bar; Foo`, not `Foo`. `op: "replace"` overwrites
+ *    the whole tag list — including clearing it via `value: ""`.
+ *  - everything else → `op: "add"`. Works as set-to-this-value for normal
+ *    fields, accepted whether or not the field had a prior value.
  *
  *  Optional `addAttachments` appends `/relations/-` ops to bind newly uploaded
  *  attachments (image/video pasted into a description or layout HTML field) to
@@ -327,11 +334,11 @@ export function patchWorkItemFields(
   patches: AdoFieldPatch[],
   addAttachments?: { url: string; name?: string }[],
 ): Promise<AdoWorkItem> {
-  const fieldOps = patches.map((p) =>
-    p.value === null || p.value === ''
-      ? { op: 'remove', path: `/fields/${p.field}` }
-      : { op: 'add', path: `/fields/${p.field}`, value: p.value },
-  );
+  const fieldOps = patches.map((p) => {
+    if (p.value === null) return { op: 'remove', path: `/fields/${p.field}` };
+    const op = p.field === 'System.Tags' ? 'replace' : 'add';
+    return { op, path: `/fields/${p.field}`, value: p.value };
+  });
   const relOps = (addAttachments ?? []).map((a) => ({
     op: 'add',
     path: '/relations/-',
