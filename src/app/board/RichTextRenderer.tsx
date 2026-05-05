@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -67,8 +68,14 @@ function preprocessHtml(html: string, resolved: Map<string, string>): string {
  *  - <a href="…mp4|.webm|.mov|.ogv|.m4v"> is rewritten to <video controls>
  *  Outer non-actionable clicks (plain text) bubble normally — that's how the
  *  description's view-mode wrapper transitions into edit mode.
+ *
+ *  Wrapped in `memo` because the modal re-renders every 30s when the taskboard
+ *  poll lands a new TaskOnBoard reference. With the memo guard, identical
+ *  `html` / `className` props skip the renderer's whole subtree — so the
+ *  `<video>` element parsed out of `dangerouslySetInnerHTML` never gets a
+ *  chance to be torn down, which preserves the user's playback position.
  */
-export function RichTextRenderer({
+function RichTextRendererImpl({
   html,
   className,
 }: {
@@ -145,6 +152,8 @@ export function RichTextRenderer({
     </>
   );
 }
+
+export const RichTextRenderer = memo(RichTextRendererImpl);
 
 function collectMedia(root: HTMLElement | null): Media[] {
   if (!root) return [];
